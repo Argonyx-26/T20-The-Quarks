@@ -1,6 +1,6 @@
 import { Eyebrow, IconTextLink } from "../shared/ui";
 import { SignalDiagram } from "./SignalDiagram";
-import { HeroSpatialField } from "./HeroSpatialField";
+import { PhoneNetworkField } from "./PhoneNetworkField";
 
 function ArrowIcon() {
   return (
@@ -32,30 +32,30 @@ export function Hero() {
       />
       <div className="pointer-events-none absolute inset-y-0 right-[6%] w-px bg-line-strong/50" aria-hidden="true" />
 
-      <div className="relative flex flex-1 flex-col gap-10 px-6 pb-8 pt-10 sm:px-10 lg:flex-row lg:items-center lg:gap-6 lg:px-12 lg:pt-6">
+      <div className="relative mx-auto flex w-full max-w-[1480px] flex-1 flex-col gap-10 px-6 pb-8 pt-10 sm:px-10 lg:flex-row lg:items-center lg:gap-10 lg:px-16 lg:pt-6">
         <div className="relative z-10 w-full lg:w-[38%] lg:shrink-0">
           <div className="animate-rise_sm" style={{ animationDelay: "0ms" }}>
             <Eyebrow index="01">Cyber-physical situational awareness</Eyebrow>
           </div>
 
-          <h1 className="mt-7 leading-[0.98] tracking-tight">
+          <h1 className="mt-7 font-display leading-[0.96] tracking-tight">
             <span
-              className="animate-rise_sm block text-[38px] font-medium text-ink sm:text-[46px] lg:text-[50px]"
+              className="animate-rise_sm block text-[40px] font-bold text-ink sm:text-[48px] lg:text-[54px]"
               style={{ animationDelay: "60ms" }}
             >
               Security systems
             </span>
             <span
-              className="animate-rise_sm -mt-1 block pl-[8%] text-[30px] font-normal italic text-ink-muted sm:text-[36px] lg:text-[40px]"
+              className="animate-rise_sm -mt-1 block pl-[8%] text-[28px] font-medium text-ink-muted sm:text-[34px] lg:text-[38px]"
               style={{ animationDelay: "120ms" }}
             >
               see events.
             </span>
-            <span className="animate-rise_sm mt-3 block text-[52px] font-semibold text-ink sm:text-[64px] lg:text-[72px]" style={{ animationDelay: "200ms" }}>
+            <span className="animate-rise_sm mt-3 block text-[56px] font-bold text-teal sm:text-[68px] lg:text-[78px]" style={{ animationDelay: "200ms" }}>
               SENTRIX
             </span>
             <span
-              className="animate-rise_sm -mt-2 block pl-[14%] text-[30px] font-normal italic text-ink-muted sm:text-[36px] lg:text-[40px]"
+              className="animate-rise_sm -mt-2 block pl-[14%] text-[28px] font-medium text-ink sm:text-[34px] lg:text-[38px]"
               style={{ animationDelay: "260ms" }}
             >
               sees relationships.
@@ -81,13 +81,16 @@ export function Hero() {
           </div>
         </div>
 
-        <div className="relative flex w-full flex-1 items-center justify-center lg:justify-end">
-          <div className="hidden w-full max-w-[640px] lg:block">
-            <HeroSpatialField />
+        <div className="relative flex w-full flex-1 flex-col items-center justify-center lg:justify-end">
+          <div className="hidden w-full max-w-[760px] lg:block">
+            <PhoneNetworkField />
           </div>
           <div className="w-full max-w-[420px] overflow-x-auto lg:hidden">
             <SignalDiagram />
           </div>
+          <p className="mt-3 hidden text-center font-mono text-[10px] tracking-[0.06em] text-ink-faint lg:block">
+            Illustrative demo scenario — device IPs shown for storytelling only
+          </p>
         </div>
       </div>
     </div>

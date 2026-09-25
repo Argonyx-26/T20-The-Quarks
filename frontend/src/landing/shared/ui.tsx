@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 export function Container({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={`mx-auto w-full max-w-[1120px] px-6 ${className}`}>{children}</div>;
+  return <div className={`mx-auto w-full max-w-[1480px] px-6 sm:px-10 lg:px-16 ${className}`}>{children}</div>;
 }
 
 export function Section({
@@ -35,11 +35,11 @@ export function PrimaryButton({
   return (
     <Link
       to={to}
-      className={`group inline-flex items-center gap-2 rounded-full border border-line-strong px-4 py-2 text-[13px] font-medium text-ink transition-colors duration-normal hover:border-ink-faint hover:bg-base-700 ${className}`}
+      className={`group inline-flex items-center gap-2 rounded-[8px] bg-teal px-5 py-2.5 text-[13px] font-semibold text-white transition-colors duration-normal hover:bg-teal-dark ${className}`}
     >
       {children}
-      <span aria-hidden="true" className="transition-transform duration-normal group-hover:translate-x-0.5 group-hover:-translate-y-0.5">
-        ↗
+      <span aria-hidden="true" className="transition-transform duration-normal group-hover:translate-x-0.5">
+        →
       </span>
     </Link>
   );
@@ -65,13 +65,13 @@ export function IconTextLink({
       <span
         className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors duration-normal ${
           emphasis
-            ? "bg-ink text-base-700 group-hover:bg-ink/90"
-            : "border border-line-strong text-ink group-hover:border-ink-faint"
+            ? "bg-teal text-white group-hover:bg-teal-dark"
+            : "border border-line-strong text-ink group-hover:border-teal"
         }`}
       >
         {icon}
       </span>
-      <span className={`text-[14px] ${emphasis ? "font-medium text-ink" : "text-ink-muted"}`}>{children}</span>
+      <span className={`text-[14px] ${emphasis ? "font-semibold text-ink" : "text-ink-muted"}`}>{children}</span>
     </>
   );
   const cls = "group inline-flex items-center gap-3";
@@ -100,7 +100,7 @@ export function SecondaryButton({
   className?: string;
   onClick?: () => void;
 }) {
-  const cls = `inline-flex items-center gap-2 rounded-sm border border-line px-5 py-2.5 text-[13.5px] font-medium text-ink-muted transition-colors hover:border-ink-faint hover:text-ink ${className}`;
+  const cls = `inline-flex items-center gap-2 rounded-[8px] border border-teal/50 px-5 py-2.5 text-[13.5px] font-semibold text-teal-dark transition-colors hover:border-teal hover:bg-teal-ultrapale ${className}`;
   if (href) {
     return (
       <a href={href} onClick={onClick} className={cls}>
@@ -117,7 +117,7 @@ export function SecondaryButton({
 
 export function Wordmark({ className = "" }: { className?: string }) {
   return (
-    <span className={`text-[14px] font-medium tracking-[0.32em] text-ink ${className}`}>
+    <span className={`font-display text-[15px] font-bold tracking-[0.28em] text-ink ${className}`}>
       SENTRIX
     </span>
   );

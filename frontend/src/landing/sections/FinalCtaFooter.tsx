@@ -4,7 +4,7 @@ export function FinalCtaFooter() {
   return (
     <>
       <Section className="text-center" border={false}>
-        <h2 className="mx-auto max-w-[20ch] text-[30px] font-semibold leading-tight text-ink sm:text-[36px]">
+        <h2 className="mx-auto max-w-[20ch] text-[30px] font-display font-bold leading-tight text-ink sm:text-[36px]">
           See the signals become a story.
         </h2>
         <div className="mt-7 flex justify-center">

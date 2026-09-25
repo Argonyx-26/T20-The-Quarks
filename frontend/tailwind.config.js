@@ -6,45 +6,54 @@ export default {
       fontFamily: {
         sans: ["IBM Plex Sans", "system-ui", "sans-serif"],
         mono: ["IBM Plex Mono", "ui-monospace", "monospace"],
+        display: ["Space Grotesk", "IBM Plex Sans", "system-ui", "sans-serif"],
       },
       colors: {
-        // Soft-light architectural palette: mist/stone surfaces, ink typography.
-        // Never pure white -- see base-500, the lightest tier, still #F8F9F9.
+        // White / cool-grey canvas with teal reserved for brand, CTAs and
+        // active/interactive states -- not a fill color for whole sections.
         base: {
-          900: "#DEE3E6", // deepest inset tone
-          800: "#EEF1F3", // page background
-          700: "#F4F6F7", // panel surface
-          600: "#E7EBEC", // nested / hover surface
-          500: "#F8F9F9", // raised / near-white surface, used sparingly
+          900: "#DDE4E4", // soft grey -- deepest inset tone
+          800: "#F8FAFA", // page background -- near-white
+          700: "#FFFFFF", // pure light surface -- panels
+          600: "#E9EEEE", // cool grey surface -- nested / hover
+          500: "#F1F4F4", // alt section background
         },
         line: {
-          DEFAULT: "rgba(22,30,38,0.14)",
-          soft: "rgba(22,30,38,0.08)",
-          strong: "rgba(22,30,38,0.28)",
+          DEFAULT: "rgba(18,55,54,0.12)",
+          soft: "rgba(18,55,54,0.07)",
+          strong: "rgba(18,55,54,0.20)",
         },
         ink: {
-          DEFAULT: "#151A20",
-          muted: "#55606B",
-          faint: "#8991A0",
+          DEFAULT: "#121718", // primary text -- graphite
+          muted: "#465253", // secondary text
+          faint: "#697576", // metadata text
+        },
+        teal: {
+          DEFAULT: "#0F7A75", // primary brand / CTA
+          dark: "#08645F", // strong / hover
+          bright: "#1B9A92", // accent
+          pale: "#D9EFEC",
+          ultrapale: "#EDF8F6",
         },
         amber: {
-          DEFAULT: "#B9842D",
-          soft: "#9C6D22",
+          DEFAULT: "#B98232",
+          soft: "#8F6425",
         },
         status: {
-          ok: "#3D9270",
-          warn: "#B9842D",
-          critical: "#CB514F",
-          offline: "#A1A8AF",
+          ok: "#3C8B72",
+          warn: "#B98232",
+          critical: "#C95F59",
+          offline: "#8A9596",
         },
         source: {
-          vision: "#4779D8",
-          endpoint: "#805EC7",
-          network: "#2A9698",
+          vision: "#4779BD",
+          endpoint: "#765BAA",
+          network: "#168B84",
         },
       },
       boxShadow: {
         none: "none",
+        panel: "0 8px 30px rgba(22,40,40,0.06)",
       },
       borderRadius: {
         sm: "4px", // brief's radius floor; `rounded-full` (dots/pills) is unaffected

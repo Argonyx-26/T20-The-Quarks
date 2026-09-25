@@ -119,18 +119,22 @@ export function ContextCore({ size = 440, state = "idle", interactive = true, cl
           >
             <circle cx="50" cy="50" r="46" fill="none" stroke="rgba(21,26,31,0.55)" strokeWidth="0.6" />
             <circle cx="50" cy="50" r="46" fill="none" stroke="rgba(21,26,31,0.2)" strokeWidth="0.6" strokeDasharray="1 5" />
-            {[0, 90, 180, 270].map((deg) => (
-              <line
-                key={deg}
-                x1="50"
-                y1="1"
-                x2="50"
-                y2="7"
-                stroke="rgba(21,26,31,0.6)"
-                strokeWidth="0.8"
-                transform={`rotate(${deg} 50 50)`}
-              />
-            ))}
+            {Array.from({ length: 24 }).map((_, i) => {
+              const deg = i * 15;
+              const major = deg % 90 === 0;
+              return (
+                <line
+                  key={deg}
+                  x1="50"
+                  y1="1"
+                  x2="50"
+                  y2={major ? "7" : "4"}
+                  stroke={major ? "rgba(21,26,31,0.6)" : "rgba(21,26,31,0.3)"}
+                  strokeWidth={major ? 0.8 : 0.5}
+                  transform={`rotate(${deg} 50 50)`}
+                />
+              );
+            })}
           </svg>
 
           {/* center lens */}

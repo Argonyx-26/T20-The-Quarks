@@ -7,9 +7,9 @@ export const sourceLabel: Record<Source, string> = {
 };
 
 export const sourceColor: Record<Source, string> = {
-  vision: "#4779D8",
-  endpoint: "#805EC7",
-  network: "#2A9698",
+  vision: "#4478B8",
+  endpoint: "#7158A6",
+  network: "#1E8580",
 };
 
 export const sensorStatusLabel: Record<SensorStatus, string> = {
@@ -19,7 +19,7 @@ export const sensorStatusLabel: Record<SensorStatus, string> = {
 };
 
 export const sensorStatusColor: Record<SensorStatus, string> = {
-  ok: "#3D9270",
-  stale: "#B9842D",
-  never_seen: "#A1A8AF",
+  ok: "#39836A",
+  stale: "#B68132",
+  never_seen: "#6B7677",
 };

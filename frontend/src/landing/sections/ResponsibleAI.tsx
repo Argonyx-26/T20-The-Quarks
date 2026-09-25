@@ -13,7 +13,7 @@ export function ResponsibleAI() {
     <Section id="responsible-ai">
       <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
         <div>
-          <h2 className="text-[28px] font-semibold leading-tight text-ink sm:text-[32px]">
+          <h2 className="text-[28px] font-display font-bold leading-tight text-ink sm:text-[32px]">
             AI explains.
             <br />
             Rules decide.

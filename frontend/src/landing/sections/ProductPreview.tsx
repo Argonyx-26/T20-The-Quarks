@@ -2,16 +2,16 @@ import { Reveal } from "../shared/Reveal";
 import { PrimaryButton, Section } from "../shared/ui";
 
 const EVENTS = [
-  { t: "00:00.0", source: "vision", color: "#4779D8", type: "person_in_restricted_zone", asset: "LAB-01", sev: 55, conf: 82 },
-  { t: "00:05.0", source: "endpoint", color: "#805EC7", type: "usb_device_attached", asset: "LAB-01", sev: 60, conf: 75 },
-  { t: "00:11.0", source: "network", color: "#2A9698", type: "outbound_data_anomaly", asset: "LAB-01", sev: 70, conf: 68 },
+  { t: "00:00.0", source: "vision", color: "#4779BD", type: "person_in_restricted_zone", asset: "LAB-01", sev: 55, conf: 82 },
+  { t: "00:05.0", source: "endpoint", color: "#785EAB", type: "usb_device_attached", asset: "LAB-01", sev: 60, conf: 75 },
+  { t: "00:11.0", source: "network", color: "#138983", type: "outbound_data_anomaly", asset: "LAB-01", sev: 70, conf: 68 },
 ];
 
 const TIMELINE = [
-  { t: "00:00.0", label: "Person presence detected", color: "#4779D8" },
-  { t: "00:05.0", label: "USB device attached", color: "#805EC7" },
-  { t: "00:11.0", label: "Outbound traffic deviation", color: "#2A9698" },
-  { t: "00:11.0", label: "INC-0001 created", color: "#CB514F" },
+  { t: "00:00.0", label: "Person presence detected", color: "#4779BD" },
+  { t: "00:05.0", label: "USB device attached", color: "#785EAB" },
+  { t: "00:11.0", label: "Outbound traffic deviation", color: "#138983" },
+  { t: "00:11.0", label: "INC-0001 created", color: "#C95F59" },
 ];
 
 export function ProductPreview() {
@@ -19,7 +19,7 @@ export function ProductPreview() {
     <Section id="live">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="max-w-[20ch] text-[28px] font-semibold leading-tight text-ink sm:text-[32px]">
+          <h2 className="max-w-[20ch] text-[32px] font-display font-bold leading-tight text-ink sm:text-[40px] lg:text-[44px]">
             This is what it looks like in the product.
           </h2>
           <p className="mt-3 max-w-[56ch] text-[14.5px] leading-relaxed text-ink-muted">

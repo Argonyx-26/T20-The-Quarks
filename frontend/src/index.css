@@ -13,19 +13,19 @@ body,
 }
 
 body {
-  background-color: #eef1f3;
-  color: #151a20;
+  background-color: #f8fafa;
+  color: #121718;
   font-family: "IBM Plex Sans", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background-color: rgba(71, 121, 216, 0.18);
+  background-color: rgba(15, 122, 117, 0.22);
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(22, 30, 38, 0.22) transparent;
+  scrollbar-color: rgba(18, 55, 54, 0.24) transparent;
 }
 
 *::-webkit-scrollbar {
@@ -34,7 +34,7 @@ body {
 }
 
 *::-webkit-scrollbar-thumb {
-  background-color: rgba(22, 30, 38, 0.22);
+  background-color: rgba(18, 55, 54, 0.24);
   border-radius: 4px;
 }
 
@@ -43,7 +43,7 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid #4779d8;
+  outline: 2px solid #0f7a75;
   outline-offset: 1px;
 }
 
