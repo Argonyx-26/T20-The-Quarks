@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "layout-transition",
+        "value": "*",
+        "files": [
+          "src/landing/sections/SignalDiagram.tsx"
+        ],
+        "createdAt": "2026-09-25T09:53:48.059Z",
+        "reason": "false positive: matched CSS width substring in SVG 'stroke-width', not the box-model width property -- animating it doesn't cause page reflow, only repaints the single vector path"
+      }
+    ]
+  }
+}
