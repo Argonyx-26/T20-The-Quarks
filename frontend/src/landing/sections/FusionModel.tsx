@@ -41,8 +41,8 @@ const STEPS = [
     key: "CONFIDENCE",
     question: "Is the combined context strong enough to act on?",
     copy: "Only after enough contextual conditions agree can the system create an incident.",
-    resultLabel: "92",
-    resultNote: "clears the 75 threshold",
+    resultLabel: "92%",
+    resultNote: "clears the 75% threshold",
   },
 ] as const;
 
@@ -176,28 +176,49 @@ function SourceVisual() {
   );
 }
 
-// 05 — vernier / caliper scale, not a circular ring
+// 05 — calibrated threshold instrument: a filled measurement rail, not a
+// thin line. This is the payoff step, so it carries more visual weight than
+// 01-04, not the same thin-line treatment.
 function ConfidenceVisual() {
   const ticks = [0, 25, 50, 75, 100];
+  const railX = 10;
+  const railW = 280;
+  const at = (t: number) => railX + (t / 100) * railW;
+
   return (
-    <div className="mt-8">
-      <svg viewBox="0 0 220 40" className="w-full">
-        <line x1="6" y1="20" x2="214" y2="20" stroke="rgba(18,55,54,0.25)" strokeWidth="1" />
+    <div className="mt-6">
+      <svg viewBox="0 0 300 70" className="w-full">
+        {/* base rail */}
+        <rect x={railX} y="28" width={railW} height="10" rx="5" fill="rgba(18,55,54,0.07)" />
+        {/* filled portion up to observed value */}
+        <rect x={railX} y="28" width={at(92) - railX} height="10" rx="5" fill="#0F7A75" />
+        {/* tick marks + labels */}
         {ticks.map((t) => (
           <g key={t}>
-            <line x1={6 + (t / 100) * 208} y1="12" x2={6 + (t / 100) * 208} y2="28" stroke="rgba(18,55,54,0.35)" strokeWidth="1" />
-            <text x={6 + (t / 100) * 208} y="40" fontSize="7.5" textAnchor="middle" fill="#8A9596" fontFamily="monospace">
+            <line x1={at(t)} y1="20" x2={at(t)} y2="44" stroke="rgba(18,55,54,0.3)" strokeWidth="1" />
+            <text x={at(t)} y="58" fontSize="9" textAnchor="middle" fill="#8A9596" fontFamily="monospace">
               {t}
             </text>
           </g>
         ))}
-        <line x1={6 + 0.75 * 208} y1="6" x2={6 + 0.75 * 208} y2="34" stroke="#B98335" strokeWidth="1.2" strokeDasharray="2 2" />
-        <line x1="6" y1="20" x2={6 + 0.92 * 208} y2="20" stroke="#0F7A75" strokeWidth="2.5" />
-        <circle cx={6 + 0.92 * 208} cy="20" r="4" fill="#0F7A75" />
+        {/* threshold marker */}
+        <line x1={at(75)} y1="14" x2={at(75)} y2="50" stroke="#B98335" strokeWidth="1.6" strokeDasharray="3 3" />
+        <text x={at(75)} y="10" fontSize="9" fontWeight="700" textAnchor="middle" fill="#B98335" fontFamily="monospace">
+          75
+        </text>
+        {/* observed aperture marker */}
+        <circle cx={at(92)} cy="33" r="8" fill="#FFFFFF" stroke="#0F7A75" strokeWidth="2.5" />
+        <circle cx={at(92)} cy="33" r="3" fill="#0F7A75" />
       </svg>
-      <div className="mt-1 flex items-center justify-between">
-        <span className="font-mono text-[10px] text-amber">THRESHOLD 75</span>
-        <span className="font-mono text-[13px] font-bold text-teal-dark">OBSERVED 92</span>
+      <div className="mt-3 flex items-end justify-between border-t border-line-soft pt-3">
+        <div>
+          <span className="font-mono text-[10px] font-semibold tracking-[0.06em] text-amber">THRESHOLD</span>
+          <p className="font-mono text-[22px] font-bold leading-none text-ink-muted">75%</p>
+        </div>
+        <div className="text-right">
+          <span className="font-mono text-[10px] font-semibold tracking-[0.06em] text-teal-dark">OBSERVED</span>
+          <p className="font-mono text-[32px] font-bold leading-none text-teal-dark">92%</p>
+        </div>
       </div>
     </div>
   );
@@ -377,13 +398,16 @@ export function FusionModel() {
             {rows.map((r) => (
               <div
                 key={r.c}
-                className="flex flex-wrap items-center gap-x-4 gap-y-1 border-l-2 px-5 py-4 transition-colors duration-normal"
-                style={{ borderColor: r.ok ? "rgba(15,122,117,0.4)" : "rgba(185,130,50,0.4)" }}
+                className="flex flex-wrap items-center gap-x-4 gap-y-1 border-l-2 px-5 py-5 transition-colors duration-normal"
+                style={{
+                  borderColor: r.ok ? "rgba(15,122,117,0.4)" : "rgba(185,130,50,0.5)",
+                  backgroundColor: r.ok ? "rgba(15,122,117,0.025)" : "rgba(185,130,50,0.04)",
+                }}
               >
                 <span className="w-20 shrink-0 font-mono text-[10.5px] tracking-[0.06em] text-ink-faint">{r.c}</span>
-                <span className="flex-1 font-mono text-[14px] font-semibold text-ink">{r.v}</span>
+                <span className="flex-1 font-mono text-[15px] font-semibold text-ink">{r.v}</span>
                 <span
-                  className="flex shrink-0 items-center gap-1.5 font-mono text-[10.5px] font-semibold"
+                  className="flex shrink-0 items-center gap-1.5 font-mono text-[10.5px] font-bold tracking-[0.04em]"
                   style={{ color: r.ok ? "#3C8B72" : "#B98232" }}
                 >
                   <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: r.ok ? "#3C8B72" : "#B98232" }} />

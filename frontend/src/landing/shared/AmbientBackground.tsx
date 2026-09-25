@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 type RGB = [number, number, number];
 
 const TEAL_BRIGHT: RGB = [27, 154, 146]; // teal.bright
+const TEAL_DARK: RGB = [8, 100, 95]; // teal.dark -- extra punch on a few particles
 const TEAL_MUTED: RGB = [138, 190, 185]; // legible mid-tone between teal.pale and teal.bright
 const GRAPHITE: RGB = [18, 23, 24]; // ink
 
@@ -19,22 +20,22 @@ interface Particle {
 }
 
 function densityFor(width: number) {
-  if (width < 640) return 20;
-  if (width < 1024) return 36;
-  return 58;
+  if (width < 640) return 30;
+  if (width < 1024) return 55;
+  return 90;
 }
 
 function makeParticles(n: number): Particle[] {
   const particles: Particle[] = [];
   for (let i = 0; i < n; i++) {
     const roll = Math.random();
-    const color = roll < 0.6 ? TEAL_BRIGHT : roll < 0.9 ? TEAL_MUTED : GRAPHITE;
-    const large = Math.random() < 0.16;
+    const color = roll < 0.45 ? TEAL_BRIGHT : roll < 0.65 ? TEAL_DARK : roll < 0.9 ? TEAL_MUTED : GRAPHITE;
+    const large = Math.random() < 0.22;
     particles.push({
       x: Math.random(),
       y: Math.random(),
-      r: large ? 2.8 + Math.random() * 1.1 : 1.3 + Math.random() * 1.3,
-      o: 0.18 + Math.random() * 0.32,
+      r: large ? 3.2 + Math.random() * 1.4 : 1.6 + Math.random() * 1.5,
+      o: 0.28 + Math.random() * 0.35,
       vx: (Math.random() - 0.5) * 0.000016,
       vy: -0.000006 - Math.random() * 0.000012,
       phase: Math.random() * Math.PI * 2,
