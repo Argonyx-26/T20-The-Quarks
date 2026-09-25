@@ -1,136 +1,138 @@
 import { useState } from "react";
 import { Reveal } from "../shared/Reveal";
 import { Section } from "../shared/ui";
-import { EventEvidenceCard } from "../shared/EventEvidenceCard";
-import { VisionIcon, EndpointIcon, NetworkIcon, VisionVisual, EndpointVisual, NetworkVisual } from "../shared/domainVisuals";
+import { VisionIcon, EndpointIcon, NetworkIcon } from "../shared/domainVisuals";
 
 type Key = "vision" | "endpoint" | "network";
 
-const EVENTS: {
+const TRACKS: {
   key: Key;
-  index: string;
-  domainCaption: string;
   label: string;
   color: string;
   icon: React.ReactNode;
-  visual: React.ReactNode;
   timestamp: string;
-  eventLines: [string, string];
-  meta: { label: string; value: string }[];
+  event: string;
+  meta: string;
+  position: number; // 0–1 along the shared time axis, drives marker placement
 }[] = [
   {
     key: "vision",
-    index: "01",
-    domainCaption: "PHYSICAL SPACE",
     label: "VISION",
     color: "#4779D8",
     icon: <VisionIcon />,
-    visual: <VisionVisual color="#4779D8" />,
-    timestamp: "00:00.0",
-    eventLines: ["Person detected", "in restricted zone"],
-    meta: [
-      { label: "ZONE", value: "RESTRICTED-LAB" },
-      { label: "CONFIDENCE", value: "82%" },
-    ],
+    timestamp: "14:32:05",
+    event: "person_in_restricted_zone",
+    meta: "LAB-01 · RESTRICTED-LAB",
+    position: 0.08,
   },
   {
     key: "endpoint",
-    index: "02",
-    domainCaption: "DEVICE ACTIVITY",
     label: "ENDPOINT",
     color: "#805EC7",
     icon: <EndpointIcon />,
-    visual: <EndpointVisual color="#805EC7" />,
-    timestamp: "00:05.0",
-    eventLines: ["USB device", "attached"],
-    meta: [
-      { label: "ASSET", value: "LAB-01" },
-      { label: "DEVICE", value: "mass_storage" },
-      { label: "PROCESS", value: "explorer.exe" },
-    ],
+    timestamp: "14:32:08",
+    event: "usb_device_attached",
+    meta: "LAB-01",
+    position: 0.42,
   },
   {
     key: "network",
-    index: "03",
-    domainCaption: "NETWORK BEHAVIOR",
     label: "NETWORK",
     color: "#2A9698",
     icon: <NetworkIcon />,
-    visual: <NetworkVisual color="#2A9698" />,
-    timestamp: "00:11.0",
-    eventLines: ["Outbound traffic", "anomaly detected"],
-    meta: [
-      { label: "DESTINATION", value: "203.0.113.44" },
-      { label: "BYTES OUT", value: "84.2 MB" },
-      { label: "FLOW ID", value: "fl-9911" },
-    ],
+    timestamp: "14:32:13",
+    event: "outbound_data_anomaly",
+    meta: "203.0.113.44 · 84.2 MB",
+    position: 0.86,
   },
 ];
-
-function Crosshair() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" className="shrink-0" aria-hidden="true">
-      <path d="M7 0v5.2M7 8.8V14M0 7h5.2M8.8 7H14" stroke="rgba(22,30,38,0.28)" strokeWidth="1" />
-    </svg>
-  );
-}
 
 export function SecurityGap() {
   const [hovered, setHovered] = useState<Key | null>(null);
 
   return (
-    <Section id="problem" border={false} className="relative">
-      <div className="pointer-events-none absolute inset-y-0 left-6 w-px bg-line-strong/30 sm:left-10 lg:left-12" aria-hidden="true" />
+    <Section id="problem" border={false} className="relative overflow-hidden">
+      <div
+        className="pointer-events-none absolute inset-0"
+        aria-hidden="true"
+        style={{ backgroundImage: "linear-gradient(rgba(21,26,31,0.04) 1px, transparent 1px)", backgroundSize: "100% 96px", opacity: 0.6 }}
+      />
 
-      <div className="grid gap-14 pl-6 sm:pl-10 lg:grid-cols-[32%_1fr] lg:gap-10 lg:pl-12">
-        <Reveal>
-          <div className="flex items-start gap-3">
-            <span className="font-mono text-[11px] text-ink-faint">01</span>
-            <div>
-              <span className="text-[11px] font-medium tracking-[0.14em] text-ink-faint">THE PROBLEM</span>
-              <h2 className="mt-4 text-[34px] font-semibold leading-[1.08] tracking-tight sm:text-[40px] lg:text-[44px]">
-                <span className="block text-ink">The problem isn't</span>
-                <span className="block text-ink">missing alerts.</span>
-                <span className="block text-ink-muted">It's disconnected</span>
-                <span className="block text-ink-muted">ones.</span>
-              </h2>
-              <p className="mt-6 max-w-[38ch] text-[13.5px] leading-relaxed text-ink-muted">
-                Each system reports independently, in isolation, with no shared sense of place or asset. Three
-                true, correctly-detected signals sit in three different consoles, and nobody asks the one
-                question that matters: do these belong to the same story?
-              </p>
-            </div>
+      <Reveal>
+        <div className="relative flex items-start gap-4">
+          <span className="mt-3 font-mono text-[11px] text-ink-faint">01</span>
+          <div>
+            <span className="text-[11px] font-medium tracking-[0.14em] text-ink-faint">THE PROBLEM</span>
+            <h2 className="mt-4 text-[56px] font-semibold leading-[0.98] tracking-tight sm:text-[72px] lg:text-[84px]">
+              <span className="block text-ink">The problem isn't</span>
+              <span className="block text-ink">missing alerts.</span>
+              <span className="mt-2 block pl-[6%] text-ink-muted">It's disconnected</span>
+              <span className="block pl-[6%] text-ink-muted">ones.</span>
+            </h2>
           </div>
-        </Reveal>
-
-        <div className="flex flex-col gap-4 overflow-x-auto sm:flex-row sm:gap-5">
-          {EVENTS.map((e, i) => (
-            <Reveal key={e.key} delayMs={150 + i * 150}>
-              <EventEvidenceCard
-                index={e.index}
-                domainCaption={e.domainCaption}
-                label={e.label}
-                color={e.color}
-                icon={e.icon}
-                visual={e.visual}
-                timestamp={e.timestamp}
-                eventLines={e.eventLines}
-                meta={e.meta}
-                dimmed={hovered !== null && hovered !== e.key}
-                onHover={(h) => setHovered(h ? e.key : null)}
-              />
-            </Reveal>
-          ))}
         </div>
+      </Reveal>
+
+      <div className="relative mt-20 flex flex-col gap-3">
+        {TRACKS.map((t, i) => {
+          const dimmed = hovered !== null && hovered !== t.key;
+          return (
+            <Reveal key={t.key} delayMs={150 + i * 180}>
+              <div
+                className="group relative flex flex-col gap-3 py-5 transition-opacity duration-normal sm:flex-row sm:items-center sm:gap-4"
+                style={{ opacity: dimmed ? 0.35 : 1 }}
+                onMouseEnter={() => setHovered(t.key)}
+                onMouseLeave={() => setHovered(null)}
+              >
+                <div className="flex items-center gap-3 sm:contents">
+                  <div
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[4px] border bg-base-500"
+                    style={{ borderColor: `${t.color}45`, color: t.color }}
+                  >
+                    {t.icon}
+                  </div>
+
+                  <div className="sm:w-[110px] sm:shrink-0">
+                    <span className="font-mono text-[11px] tracking-[0.08em]" style={{ color: t.color }}>
+                      {t.label}
+                    </span>
+                    <p className="mt-0.5 font-mono text-[10.5px] text-ink-faint">{t.timestamp}</p>
+                  </div>
+                </div>
+
+                <div className="relative h-px w-full sm:flex-1" style={{ backgroundColor: `${t.color}25` }}>
+                  <span
+                    className="absolute top-1/2 h-2 w-2 -translate-y-1/2 rounded-full transition-transform duration-normal group-hover:scale-150"
+                    style={{ left: `${t.position * 100}%`, backgroundColor: t.color }}
+                  />
+                </div>
+
+                <div className="pl-[52px] text-left sm:w-[220px] sm:shrink-0 sm:pl-0 sm:text-right lg:w-[280px]">
+                  <p className="font-mono text-[12.5px] text-ink">{t.event}</p>
+                  <p className="mt-0.5 text-[11px] text-ink-faint">{t.meta}</p>
+                </div>
+              </div>
+            </Reveal>
+          );
+        })}
       </div>
 
-      <Reveal delayMs={650}>
-        <div className="mt-14 flex items-center gap-4 pl-6 sm:pl-10 lg:pl-12">
-          <Crosshair />
-          <span className="h-px w-8 bg-line-strong/50 sm:w-12" />
-          <p className="font-mono text-[11.5px] uppercase tracking-[0.1em] text-ink-muted">
+      <Reveal delayMs={700}>
+        <p className="relative mt-16 max-w-[46ch] text-[13.5px] leading-relaxed text-ink-muted">
+          Each system reports independently, in isolation, with no shared sense of place or asset. Three true,
+          correctly-detected signals sit in three different consoles, and nobody asks the one question that
+          matters.
+        </p>
+      </Reveal>
+
+      <Reveal delayMs={900}>
+        <div className="relative mt-14 border-t border-line-soft pt-10">
+          <p className="font-mono text-[12px] uppercase tracking-[0.12em] text-ink-muted">
             Three true events. Three separate systems. <span className="text-amber">No shared context.</span>
           </p>
+          <h3 className="mt-5 max-w-[16ch] text-[38px] font-semibold leading-[1.02] tracking-tight text-ink sm:text-[48px] lg:text-[56px]">
+            Do these events belong to the same story?
+          </h3>
         </div>
       </Reveal>
     </Section>

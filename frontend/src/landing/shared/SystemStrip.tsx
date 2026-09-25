@@ -25,10 +25,12 @@ function BarsIcon() {
 }
 
 /** Persistent site-wide chrome, mirrors the sticky top Nav. Height must stay
- * in sync with the `pb-20` bottom padding Landing.tsx reserves for it. */
+ * in sync with the `lg:pb-20` bottom padding Landing.tsx reserves for it.
+ * Hidden below `lg`: at narrow widths its content only overflows and clips
+ * rather than earning a permanently fixed strip of screen. */
 export function SystemStrip() {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 h-20 overflow-x-auto border-t border-line-soft bg-base-800/90 backdrop-blur">
+    <div className="fixed inset-x-0 bottom-0 z-40 hidden h-20 overflow-x-auto border-t border-line-soft bg-base-800/90 backdrop-blur lg:block">
       <div className="flex h-full min-w-max items-center divide-x divide-line-soft px-6 sm:px-10 lg:px-12">
         <div className="flex flex-col gap-2 py-4 pr-8">
           <div className="flex items-center gap-3">

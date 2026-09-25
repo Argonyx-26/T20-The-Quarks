@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import type { Incident, IncidentStatus, Source } from "../types";
 import { formatClock, formatConfidence, severityBand, severityBandColor, severityBandLabel } from "../format";
 import { sourceColor, sourceLabel } from "../theme";
@@ -79,7 +80,13 @@ export function IncidentPanel({ incidents, selected, onSelect, onSetStatus, just
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-mono text-[13px] font-semibold text-ink">{selected.incident_id}</span>
+              <Link
+                to={`/incident/${selected.incident_id}`}
+                className="font-mono text-[13px] font-semibold text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
+                title="Open full incident detail"
+              >
+                {selected.incident_id}
+              </Link>
               <span
                 className="rounded-sm border px-1.5 py-0.5 font-mono text-[10px] tracking-wide"
                 style={{ borderColor: `${STATUS_COLOR[selected.status]}55`, color: STATUS_COLOR[selected.status], backgroundColor: `${STATUS_COLOR[selected.status]}14` }}

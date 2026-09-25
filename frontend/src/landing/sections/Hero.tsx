@@ -1,5 +1,6 @@
 import { Eyebrow, IconTextLink } from "../shared/ui";
 import { SignalDiagram } from "./SignalDiagram";
+import { HeroSpatialField } from "./HeroSpatialField";
 
 function ArrowIcon() {
   return (
@@ -31,29 +32,37 @@ export function Hero() {
       />
       <div className="pointer-events-none absolute inset-y-0 right-[6%] w-px bg-line-strong/50" aria-hidden="true" />
 
-      <div className="relative flex flex-1 flex-col gap-14 px-6 pb-8 pt-10 sm:px-10 lg:flex-row lg:items-center lg:gap-10 lg:px-12 lg:pt-6">
-        <div className="w-full lg:w-[42%] lg:shrink-0">
+      <div className="relative flex flex-1 flex-col gap-10 px-6 pb-8 pt-10 sm:px-10 lg:flex-row lg:items-center lg:gap-6 lg:px-12 lg:pt-6">
+        <div className="relative z-10 w-full lg:w-[38%] lg:shrink-0">
           <div className="animate-rise_sm" style={{ animationDelay: "0ms" }}>
             <Eyebrow index="01">Cyber-physical situational awareness</Eyebrow>
           </div>
 
-          <h1 className="mt-6 text-[42px] font-medium leading-[1.05] tracking-tight sm:text-[52px] lg:text-[58px]">
-            <span className="animate-rise_sm block text-ink" style={{ animationDelay: "60ms" }}>
+          <h1 className="mt-7 leading-[0.98] tracking-tight">
+            <span
+              className="animate-rise_sm block text-[38px] font-medium text-ink sm:text-[46px] lg:text-[50px]"
+              style={{ animationDelay: "60ms" }}
+            >
               Security systems
             </span>
-            <span className="animate-rise_sm block font-normal italic text-ink-muted" style={{ animationDelay: "120ms" }}>
+            <span
+              className="animate-rise_sm -mt-1 block pl-[8%] text-[30px] font-normal italic text-ink-muted sm:text-[36px] lg:text-[40px]"
+              style={{ animationDelay: "120ms" }}
+            >
               see events.
             </span>
-            <span className="animate-rise_sm block" style={{ animationDelay: "180ms" }}>
-              <span className="font-semibold text-ink">SENTRIX</span>{" "}
-              <span className="font-normal italic text-ink-muted">sees</span>
+            <span className="animate-rise_sm mt-3 block text-[52px] font-semibold text-ink sm:text-[64px] lg:text-[72px]" style={{ animationDelay: "200ms" }}>
+              SENTRIX
             </span>
-            <span className="animate-rise_sm block font-normal italic text-ink-muted" style={{ animationDelay: "240ms" }}>
-              relationships.
+            <span
+              className="animate-rise_sm -mt-2 block pl-[14%] text-[30px] font-normal italic text-ink-muted sm:text-[36px] lg:text-[40px]"
+              style={{ animationDelay: "260ms" }}
+            >
+              sees relationships.
             </span>
           </h1>
 
-          <div className="animate-rise_sm mt-7" style={{ animationDelay: "320ms" }}>
+          <div className="animate-rise_sm mt-8" style={{ animationDelay: "340ms" }}>
             <p className="max-w-[42ch] text-[15px] leading-relaxed text-ink-muted">
               SENTRIX correlates physical, endpoint and network signals into a single explainable incident, in real
               time.
@@ -61,7 +70,7 @@ export function Hero() {
             <p className="mt-1.5 text-[13px] text-ink-faint">Deterministic fusion. Operator-auditable reasoning.</p>
           </div>
 
-          <div className="animate-rise_sm mt-10 flex flex-wrap items-center gap-5" style={{ animationDelay: "380ms" }}>
+          <div className="animate-rise_sm mt-9 flex flex-wrap items-center gap-5" style={{ animationDelay: "400ms" }}>
             <IconTextLink to="/mission-control" icon={<ArrowIcon />} emphasis>
               Enter Mission Control
             </IconTextLink>
@@ -72,8 +81,13 @@ export function Hero() {
           </div>
         </div>
 
-        <div className="relative flex w-full flex-1 items-center justify-center overflow-x-auto lg:justify-end">
-          <SignalDiagram />
+        <div className="relative flex w-full flex-1 items-center justify-center lg:justify-end">
+          <div className="hidden w-full max-w-[640px] lg:block">
+            <HeroSpatialField />
+          </div>
+          <div className="w-full max-w-[420px] overflow-x-auto lg:hidden">
+            <SignalDiagram />
+          </div>
         </div>
       </div>
     </div>

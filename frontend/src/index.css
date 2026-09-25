@@ -73,6 +73,20 @@ body {
   }
 }
 
+@keyframes core-drift {
+  0%,
+  100% {
+    transform: rotateZ(0deg) translateY(0px);
+  }
+  50% {
+    transform: rotateZ(1.2deg) translateY(-6px);
+  }
+}
+
+.animate-core-drift {
+  animation: core-drift 9s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

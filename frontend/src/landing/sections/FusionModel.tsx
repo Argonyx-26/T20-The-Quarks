@@ -1,5 +1,6 @@
 import { Reveal } from "../shared/Reveal";
 import { Section } from "../shared/ui";
+import { ContextCore } from "../shared/ContextCore";
 
 const DIMENSIONS = ["Time", "Asset", "Zone", "Severity", "Confidence"];
 
@@ -14,31 +15,39 @@ const CRITERIA = [
 export function FusionModel() {
   return (
     <Section id="how-it-thinks">
-      <h2 className="max-w-[20ch] text-[28px] font-semibold leading-tight text-ink sm:text-[32px]">
-        Correlation isn't a matching timestamp.
-      </h2>
-      <p className="mt-4 max-w-[58ch] text-[14.5px] leading-relaxed text-ink-muted">
-        Two events close in time are a coincidence, not a story. SENTRIX only groups events that share
-        positive, traceable context — the same physical asset, or a zone one maps to directly — within a
-        configured window, and only once enough independent sources agree.
-      </p>
+      <div className="grid gap-12 lg:grid-cols-[1fr_260px] lg:items-start lg:gap-16">
+        <div>
+          <h2 className="max-w-[20ch] text-[32px] font-semibold leading-tight text-ink sm:text-[40px] lg:text-[44px]">
+            Correlation isn't a matching timestamp.
+          </h2>
+          <p className="mt-4 max-w-[58ch] text-[14.5px] leading-relaxed text-ink-muted">
+            Two events close in time are a coincidence, not a story. SENTRIX only groups events that share
+            positive, traceable context — the same physical asset, or a zone one maps to directly — within a
+            configured window, and only once enough independent sources agree.
+          </p>
 
-      <Reveal className="mt-10 flex flex-wrap items-center gap-x-3 gap-y-4">
-        <>
-          {DIMENSIONS.map((d, i) => (
-            <span key={d} className="flex items-center gap-3">
-              <span className="rounded-sm border border-line bg-base-700 px-3.5 py-2 font-mono text-[12px] text-ink">
-                {d}
+          <Reveal className="mt-10 flex flex-wrap items-center gap-x-3 gap-y-4">
+            <>
+              {DIMENSIONS.map((d, i) => (
+                <span key={d} className="flex items-center gap-3">
+                  <span className="rounded-sm border border-line bg-base-700 px-3.5 py-2 font-mono text-[12px] text-ink">
+                    {d}
+                  </span>
+                  {i < DIMENSIONS.length - 1 && <span className="text-ink-faint">×</span>}
+                </span>
+              ))}
+              <span className="text-ink-faint">=</span>
+              <span className="rounded-sm border border-amber/40 bg-amber/10 px-3.5 py-2 font-mono text-[12px] text-amber">
+                Context
               </span>
-              {i < DIMENSIONS.length - 1 && <span className="text-ink-faint">×</span>}
-            </span>
-          ))}
-          <span className="text-ink-faint">=</span>
-          <span className="rounded-sm border border-amber/40 bg-amber/10 px-3.5 py-2 font-mono text-[12px] text-amber">
-            Context
-          </span>
-        </>
-      </Reveal>
+            </>
+          </Reveal>
+        </div>
+
+        <Reveal delayMs={200} className="hidden justify-self-center lg:flex">
+          <ContextCore size={210} state="locked" interactive={false} />
+        </Reveal>
+      </div>
 
       <div className="mt-12 rounded-sm border border-line bg-base-700">
         <div className="border-b border-line px-4 py-2.5 text-[11px] font-semibold tracking-wide text-ink-muted">
