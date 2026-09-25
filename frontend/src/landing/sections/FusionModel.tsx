@@ -79,30 +79,41 @@ function TimeVisual() {
   );
 }
 
-// 02 — two identity layers sliding into registration, not arrows
+// 02 — two identity layers registering across the full frame, not arrows
 function DeviceVisual() {
   return (
-    <div className="relative mt-6 flex h-32 items-center justify-center">
+    <div className="relative mt-6 flex h-48 items-center justify-center overflow-hidden">
+      {/* registration rail -- spans the frame so the plates read as an instrument, not two floating cards */}
+      <div className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-line-soft" />
+      {[0.08, 0.5, 0.92].map((f) => (
+        <span
+          key={f}
+          className="absolute top-1/2 h-2.5 w-px -translate-y-1/2 bg-line-strong/50"
+          style={{ left: `${f * 100}%` }}
+        />
+      ))}
+
       <div
-        className="absolute h-[76px] w-[150px] rounded-[6px] border border-line-strong/60 bg-base-500/70"
-        style={{ transform: "translate(-9px,-5px)" }}
+        className="absolute h-[124px] w-[62%] max-w-[280px] rounded-[8px] border border-line-strong/70 bg-base-500/70"
+        style={{ transform: "translate(-13%,-9px)" }}
       >
-        <span className="absolute left-2.5 top-2 font-mono text-[9px] tracking-[0.05em] text-ink-faint">ENDPOINT</span>
-        <span className="absolute bottom-2 left-2.5 text-[12px] font-semibold text-ink">Phone B</span>
-        <span className="absolute bottom-2 right-2.5 font-mono text-[9px] text-ink-faint">PHONE-B</span>
+        <span className="absolute left-3.5 top-3 font-mono text-[10px] tracking-[0.06em] text-ink-faint">ENDPOINT EVENT</span>
+        <span className="absolute bottom-3 left-3.5 text-[18px] font-semibold text-ink">Phone B</span>
+        <span className="absolute bottom-3 right-3.5 font-mono text-[10px] text-ink-faint">PHONE-B</span>
       </div>
       <div
-        className="absolute h-[76px] w-[150px] rounded-[6px] border border-teal/60 bg-teal/5"
-        style={{ transform: "translate(9px,5px)" }}
+        className="absolute h-[124px] w-[62%] max-w-[280px] rounded-[8px] border border-teal/60 bg-teal/5"
+        style={{ transform: "translate(13%,9px)" }}
       >
-        <span className="absolute right-2.5 top-2 font-mono text-[9px] tracking-[0.05em] text-teal-dark">NETWORK</span>
-        <span className="absolute bottom-2 right-2.5 text-[12px] font-semibold text-ink">Phone B</span>
-        <span className="absolute bottom-2 left-2.5 font-mono text-[9px] text-ink-faint">.1.37</span>
+        <span className="absolute right-3.5 top-3 font-mono text-[10px] tracking-[0.06em] text-teal-dark">NETWORK EVENT</span>
+        <span className="absolute bottom-3 right-3.5 text-[18px] font-semibold text-ink">Phone B</span>
+        <span className="absolute bottom-3 left-3.5 font-mono text-[10px] text-ink-faint">192.168.1.37</span>
       </div>
-      <svg width="18" height="18" className="relative z-10">
-        <line x1="9" y1="1" x2="9" y2="17" stroke="#08645F" strokeWidth="1" />
-        <line x1="1" y1="9" x2="17" y2="9" stroke="#08645F" strokeWidth="1" />
-        <circle cx="9" cy="9" r="2" fill="none" stroke="#08645F" strokeWidth="1" />
+
+      <svg width="30" height="30" className="relative z-10">
+        <line x1="15" y1="1" x2="15" y2="29" stroke="#08645F" strokeWidth="1.3" />
+        <line x1="1" y1="15" x2="29" y2="15" stroke="#08645F" strokeWidth="1.3" />
+        <circle cx="15" cy="15" r="4" fill="none" stroke="#08645F" strokeWidth="1.3" />
       </svg>
     </div>
   );
@@ -349,9 +360,9 @@ export function FusionModel() {
           ))}
         </div>
 
-        <div className="mt-6 grid gap-x-6 gap-y-3 border border-line bg-base-700 p-5 sm:grid-cols-[140px_1fr_100px]">
+        <div className="mt-6 border border-line bg-base-700">
           {mode === "mismatch" && (
-            <div className="col-span-full mb-1 flex items-center gap-3 border-b border-line-soft pb-4">
+            <div className="flex items-center gap-3 border-b border-line-soft px-5 py-4">
               <div className="relative h-10 w-16 shrink-0">
                 <div className="absolute h-8 w-12 -translate-x-1 rounded-[4px] border border-line-strong/60 bg-base-500/70" />
                 <div className="absolute h-8 w-12 translate-x-1 translate-y-1.5 rounded-[4px] border border-amber/60 bg-amber/5" />
@@ -361,24 +372,41 @@ export function FusionModel() {
               </p>
             </div>
           )}
-          {rows.map((r) => (
-            <div key={r.c} className="contents">
-              <span className="font-mono text-[11.5px] text-ink-faint">{r.c}</span>
-              <span className="font-mono text-[12.5px] text-ink">{r.v}</span>
-              <span
-                className="flex items-center gap-1.5 font-mono text-[10.5px] font-semibold"
-                style={{ color: r.ok ? "#3C8B72" : "#B98232" }}
+
+          <div className="divide-y divide-line-soft">
+            {rows.map((r) => (
+              <div
+                key={r.c}
+                className="flex flex-wrap items-center gap-x-4 gap-y-1 border-l-2 px-5 py-4 transition-colors duration-normal"
+                style={{ borderColor: r.ok ? "rgba(15,122,117,0.4)" : "rgba(185,130,50,0.4)" }}
               >
-                <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: r.ok ? "#3C8B72" : "#B98232" }} />
-                {r.ok ? "MATCH" : "MISMATCH"}
-              </span>
-            </div>
-          ))}
-          <div className="col-span-full mt-3 border-t border-line-soft pt-3">
+                <span className="w-20 shrink-0 font-mono text-[10.5px] tracking-[0.06em] text-ink-faint">{r.c}</span>
+                <span className="flex-1 font-mono text-[14px] font-semibold text-ink">{r.v}</span>
+                <span
+                  className="flex shrink-0 items-center gap-1.5 font-mono text-[10.5px] font-semibold"
+                  style={{ color: r.ok ? "#3C8B72" : "#B98232" }}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: r.ok ? "#3C8B72" : "#B98232" }} />
+                  {r.ok ? "MATCH" : "MISMATCH"}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* the decisive moment -- not a footer line */}
+          <div className="border-t-2 px-5 py-6" style={{ borderColor: mode === "match" ? "#C75D56" : "rgba(185,130,50,0.5)" }}>
             {mode === "match" ? (
-              <p className="font-mono text-[12.5px] font-bold text-status-critical">CONTEXT RESOLVED → INCIDENT CREATED</p>
+              <>
+                <p className="font-mono text-[11px] font-bold tracking-[0.1em] text-status-critical">CONTEXT RESOLVED</p>
+                <p className="mt-1.5 font-mono text-[22px] font-bold leading-tight text-ink">INC-0001</p>
+                <p className="mt-1 text-[12.5px] text-ink-muted">Suspicious multi-signal activity — incident created.</p>
+              </>
             ) : (
-              <p className="font-mono text-[12.5px] font-bold text-amber">CONTEXT MISMATCH → EVENTS REMAIN SEPARATE</p>
+              <>
+                <p className="font-mono text-[11px] font-bold tracking-[0.1em] text-amber">CONTEXT MISMATCH</p>
+                <p className="mt-1.5 text-[15px] font-semibold text-ink">Events remain separate.</p>
+                <p className="mt-1 text-[12.5px] text-ink-muted">No incident created — this is correct behavior, not a system failure.</p>
+              </>
             )}
           </div>
         </div>

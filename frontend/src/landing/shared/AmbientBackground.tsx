@@ -19,9 +19,9 @@ interface Particle {
 }
 
 function densityFor(width: number) {
-  if (width < 640) return 14;
-  if (width < 1024) return 26;
-  return 44;
+  if (width < 640) return 20;
+  if (width < 1024) return 36;
+  return 58;
 }
 
 function makeParticles(n: number): Particle[] {
@@ -29,12 +29,12 @@ function makeParticles(n: number): Particle[] {
   for (let i = 0; i < n; i++) {
     const roll = Math.random();
     const color = roll < 0.6 ? TEAL_BRIGHT : roll < 0.9 ? TEAL_MUTED : GRAPHITE;
-    const large = Math.random() < 0.12;
+    const large = Math.random() < 0.16;
     particles.push({
       x: Math.random(),
       y: Math.random(),
-      r: large ? 2.2 + Math.random() * 0.8 : 0.9 + Math.random() * 1.1,
-      o: 0.1 + Math.random() * 0.25,
+      r: large ? 2.8 + Math.random() * 1.1 : 1.3 + Math.random() * 1.3,
+      o: 0.18 + Math.random() * 0.32,
       vx: (Math.random() - 0.5) * 0.000016,
       vy: -0.000006 - Math.random() * 0.000012,
       phase: Math.random() * Math.PI * 2,
@@ -134,9 +134,9 @@ export function AmbientBackground() {
         className="absolute inset-0"
         style={{
           background:
-            "radial-gradient(circle at 78% 12%, rgba(27,154,146,0.075), transparent 38%), " +
-            "radial-gradient(circle at 15% 78%, rgba(15,122,117,0.05), transparent 42%), " +
-            "linear-gradient(180deg, #FBFCFC 0%, #F6F9F8 45%, #EFF6F5 100%)",
+            "radial-gradient(circle at 78% 12%, rgba(27,154,146,0.12), transparent 42%), " +
+            "radial-gradient(circle at 15% 78%, rgba(15,122,117,0.085), transparent 46%), " +
+            "linear-gradient(180deg, #FBFCFC 0%, #F5F9F8 45%, #EBF5F3 100%)",
         }}
       />
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
