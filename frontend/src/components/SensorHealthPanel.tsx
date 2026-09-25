@@ -15,25 +15,23 @@ export function SensorHealthPanel({ health }: { health: HealthResponse | null })
   }, []);
 
   return (
-    <Panel title="Sensor Health">
+    <Panel title="Source Health" noPadding>
       <div className="flex flex-col divide-y divide-line-soft">
         {SOURCES.map((s) => {
           const entry = health?.sensors[s];
           const status = entry?.status ?? "never_seen";
           const color = sensorStatusColor[status];
           return (
-            <div key={s} className="flex items-center justify-between py-2 first:pt-0 last:pb-0">
+            <div key={s} className="flex items-center justify-between px-3 py-2.5">
               <div className="flex items-center gap-2">
                 <StatusDot color={color} pulse={status === "stale"} />
-                <span className="text-[13px] font-medium text-ink">{sourceLabel[s]}</span>
+                <span className="text-[13.5px] font-semibold text-ink">{sourceLabel[s]}</span>
               </div>
-              <div className="flex items-center gap-2 text-right">
-                <span className="text-[11px] font-medium" style={{ color }}>
+              <div className="flex flex-col items-end">
+                <span className="text-[11px] font-semibold" style={{ color }}>
                   {sensorStatusLabel[status]}
                 </span>
-                <span className="w-16 font-mono text-[10px] text-ink-faint">
-                  {formatRelative(entry?.last_seen ?? null, now)}
-                </span>
+                <span className="font-mono text-[10px] text-ink-faint">{formatRelative(entry?.last_seen ?? null, now)}</span>
               </div>
             </div>
           );

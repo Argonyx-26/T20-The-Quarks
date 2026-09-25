@@ -16,7 +16,7 @@ interface Props {
 }
 
 const STATUS_COLOR: Record<IncidentStatus, string> = {
-  OPEN: "#CB514F",
+  OPEN: "#C75D56",
   ACKNOWLEDGED: "#B9842D",
   RESOLVED: "#3D9270",
 };
@@ -34,15 +34,15 @@ export function IncidentPanel({ incidents, selected, onSelect, onSetStatus, just
   if (incidents.length === 0 || !selected) {
     return (
       <Panel title="Active Incident" className="flex-1">
-        <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-          <div className="h-2 w-2 animate-pulse_dot rounded-full bg-status-ok" />
-          <p className="text-[13px] font-medium text-ink">No active incident</p>
-          <p className="max-w-[280px] text-[12px] text-ink-faint">
-            SENTRIX is monitoring {sensorsSeen} sensor source{sensorsSeen === 1 ? "" : "s"} and has observed {totalEvents} event
-            {totalEvents === 1 ? "" : "s"}. An incident is created only when independent signals corroborate on the same asset
-            or zone.
+        <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+          <div className="h-2.5 w-2.5 animate-pulse_dot rounded-full bg-status-ok" />
+          <p className="text-[17px] font-semibold text-ink">No active incident</p>
+          <p className="max-w-[300px] text-[12.5px] leading-relaxed text-ink-faint">
+            Monitoring {sensorsSeen} sensor source{sensorsSeen === 1 ? "" : "s"} — {totalEvents} event
+            {totalEvents === 1 ? "" : "s"} observed. An incident is created only when independent signals
+            corroborate on the same asset or zone.
           </p>
-          <p className="mt-1 font-mono text-[10.5px] tracking-wide text-ink-faint">SYSTEM READY</p>
+          <p className="mt-1 font-mono text-[10.5px] tracking-wide text-status-ok">SYSTEM READY</p>
         </div>
       </Panel>
     );
@@ -51,6 +51,7 @@ export function IncidentPanel({ incidents, selected, onSelect, onSetStatus, just
   const band = severityBand(selected.severity);
   const sources = sourcesInIncident(selected);
   const flashing = justUpdatedId === selected.incident_id;
+  const statusColor = STATUS_COLOR[selected.status];
 
   return (
     <Panel
@@ -74,63 +75,62 @@ export function IncidentPanel({ incidents, selected, onSelect, onSetStatus, just
           </div>
         ) : undefined
       }
+      noPadding
       className={`flex-1 ${flashing ? "animate-flash" : ""}`}
     >
-      <div className="flex h-full flex-col gap-3 overflow-y-auto">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <Link
-                to={`/incident/${selected.incident_id}`}
-                className="font-mono text-[13px] font-semibold text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
-                title="Open full incident detail"
-              >
-                {selected.incident_id}
-              </Link>
-              <span
-                className="rounded-sm border px-1.5 py-0.5 font-mono text-[10px] tracking-wide"
-                style={{ borderColor: `${STATUS_COLOR[selected.status]}55`, color: STATUS_COLOR[selected.status], backgroundColor: `${STATUS_COLOR[selected.status]}14` }}
-              >
-                {selected.status}
-              </span>
-            </div>
-            <p className="mt-1 text-[12px] leading-snug text-ink-muted">{selected.summary}</p>
+      <div className="flex h-full flex-col overflow-y-auto">
+        {/* the decisive moment -- a real focal point, not a small card */}
+        <div className="border-l-2 px-4 py-4" style={{ borderColor: statusColor }}>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[11px] font-bold tracking-[0.1em]" style={{ color: statusColor }}>
+              {selected.status}
+            </span>
           </div>
+          <Link
+            to={`/incident/${selected.incident_id}`}
+            className="mt-1 block font-mono text-[26px] font-bold leading-tight text-ink hover:text-teal-dark"
+            title="Open full incident detail"
+          >
+            {selected.incident_id}
+          </Link>
+          <p className="mt-1.5 text-[13px] leading-snug text-ink-muted">{selected.summary}</p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 text-[12px]">
+        <div className="grid grid-cols-2 gap-4 border-t border-line-soft px-4 py-3">
           <div>
-            <div className="mb-1 flex items-center justify-between">
-              <span className="text-ink-faint">Severity</span>
-              <span className="font-mono font-medium" style={{ color: severityBandColor[band] }}>
-                {selected.severity} · {severityBandLabel[band]}
+            <div className="mb-1 flex items-baseline justify-between">
+              <span className="text-[11px] text-ink-faint">Severity</span>
+              <span className="font-mono text-[15px] font-bold" style={{ color: severityBandColor[band] }}>
+                {selected.severity}
               </span>
             </div>
             <SeverityBar severity={selected.severity} />
+            <span className="mt-1 block text-[10.5px] text-ink-faint">{severityBandLabel[band]}</span>
           </div>
           <div>
-            <div className="mb-1 flex items-center justify-between">
-              <span className="text-ink-faint">Confidence</span>
-              <span className="font-mono font-medium text-ink">{formatConfidence(selected.confidence)}</span>
+            <div className="mb-1 flex items-baseline justify-between">
+              <span className="text-[11px] text-ink-faint">Confidence</span>
+              <span className="font-mono text-[15px] font-bold text-teal-dark">{formatConfidence(selected.confidence)}</span>
             </div>
             <SeverityBar severity={selected.confidence * 100} />
+            <span className="mt-1 block text-[10.5px] text-ink-faint">of combined signals</span>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-x-3 gap-y-2 border-t border-line-soft pt-3 text-[12px]">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2 border-t border-line-soft px-4 py-3 text-[12px]">
           <Field label="Asset" value={selected.asset_id} mono />
           <Field label="Zone" value={selected.zone_id ?? "unresolved"} mono />
           <Field label="Signals" value={String(selected.signals.length)} mono />
           <Field label="Created" value={formatClock(selected.created_at)} mono />
         </div>
 
-        <div>
+        <div className="border-t border-line-soft px-4 py-3">
           <span className="text-[11px] text-ink-faint">Source diversity</span>
-          <div className="mt-1 flex flex-wrap gap-1.5">
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
             {sources.map((s) => (
               <span
                 key={s}
-                className="rounded-sm border px-1.5 py-0.5 text-[10px] font-medium"
+                className="rounded-sm border px-1.5 py-0.5 text-[10.5px] font-medium"
                 style={{ borderColor: `${sourceColor[s]}55`, color: sourceColor[s], backgroundColor: `${sourceColor[s]}14` }}
               >
                 {sourceLabel[s]}
@@ -139,12 +139,12 @@ export function IncidentPanel({ incidents, selected, onSelect, onSetStatus, just
           </div>
         </div>
 
-        <div className="border-t border-line-soft pt-3">
+        <div className="border-t border-line-soft px-4 py-3">
           <span className="text-[11px] text-ink-faint">Recommended action</span>
           <p className="mt-1 text-[12.5px] leading-snug text-ink">{selected.recommended_action}</p>
         </div>
 
-        <div className="mt-auto flex gap-2 border-t border-line-soft pt-3">
+        <div className="mt-auto flex gap-2 border-t border-line-soft px-4 py-3">
           <button
             disabled={selected.status !== "OPEN"}
             onClick={() => onSetStatus(selected.incident_id, "ACKNOWLEDGED")}
