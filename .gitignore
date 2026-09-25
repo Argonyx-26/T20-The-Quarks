@@ -25,3 +25,6 @@ build/
 
 # Logs
 *.log
+
+# Process management (scripts/start.sh, scripts/stop.sh)
+.sentrix_pids/

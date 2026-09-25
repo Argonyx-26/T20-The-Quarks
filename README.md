@@ -30,7 +30,7 @@ exists — that's deterministic fusion logic. See
 |---|---|---|
 | `backend/` | Backend/fusion architect | Implemented — see `docs/API_CONTRACT.md` |
 | `frontend/` | Mission Control UI | Not started |
-| `sensors/` | Vision/endpoint/network adapters | Not started |
+| `sensors/` | Vision/endpoint/network adapters | Implemented — see `sensors/README.md` |
 
 ## Quickstart (backend)
 
@@ -54,3 +54,36 @@ Tests: `cd backend && ./.venv/bin/python -m pytest -q`
 
 Full API/WebSocket contract, fusion rules, and event schema:
 **[`docs/API_CONTRACT.md`](docs/API_CONTRACT.md)**.
+
+## Quickstart (sensors + integration)
+
+```bash
+cd sensors
+python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
+```
+
+```bash
+# one-off checks against a running backend
+./.venv/bin/python -m sensors.run network --once
+./.venv/bin/python -m sensors.run endpoint --once
+./.venv/bin/python -m sensors.run vision --once   # needs camera permission; --manual works without one
+./.venv/bin/python -m sensors.run replay --list
+```
+
+Operator scripts (from repo root):
+
+```bash
+./scripts/start.sh    # start backend (+ frontend if present)
+./scripts/health.sh   # [OK]/[DEGRADED] status for backend, ws, fusion, each sensor, frontend
+./scripts/demo.sh     # reset -> positive scenario (incident) -> negative scenario (no incident)
+./scripts/reset.sh    # clear all in-memory state
+./scripts/stop.sh     # stop what start.sh started
+```
+
+Integration/E2E/chaos test suite (hits a real running backend, not mocks):
+
+```bash
+cd backend && ./.venv/bin/pytest ../tests/ -v
+```
+
+See `sensors/README.md` for adapter details (what's live vs. fallback).
