@@ -1,0 +1,42 @@
+{
+  "description": "Vision + endpoint + network all reference LAB-01/RESTRICTED-LAB within the correlation window -> incident expected.",
+  "expected": "incident_created",
+  "events": [
+    {
+      "offset_seconds": 0,
+      "event_id": "demo-vision-001",
+      "source": "vision",
+      "event_type": "person_in_restricted_zone",
+      "asset_id": "LAB-01",
+      "zone_id": "RESTRICTED-LAB",
+      "severity": 55,
+      "confidence": 0.82,
+      "attributes": {"camera_id": "CAM-LAB-01", "person_count": 1},
+      "evidence": {"clip_url": "demo://vision/clip-001.mp4", "thumbnail": "demo://vision/thumb-001.jpg"}
+    },
+    {
+      "offset_seconds": 5,
+      "event_id": "demo-endpoint-001",
+      "source": "endpoint",
+      "event_type": "usb_device_attached",
+      "asset_id": "LAB-01",
+      "zone_id": null,
+      "severity": 60,
+      "confidence": 0.75,
+      "attributes": {"device_class": "mass_storage", "vendor_id": "0781"},
+      "evidence": {"host": "LAB-01", "process": "explorer.exe"}
+    },
+    {
+      "offset_seconds": 11,
+      "event_id": "demo-network-001",
+      "source": "network",
+      "event_type": "outbound_data_anomaly",
+      "asset_id": "LAB-01",
+      "zone_id": null,
+      "severity": 70,
+      "confidence": 0.68,
+      "attributes": {"bytes_out": 84213333, "dest_country": "unknown"},
+      "evidence": {"flow_id": "fl-9911", "dest_ip": "203.0.113.44"}
+    }
+  ]
+}

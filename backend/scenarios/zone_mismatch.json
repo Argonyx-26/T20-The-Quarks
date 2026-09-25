@@ -1,0 +1,42 @@
+{
+  "description": "Vision reports ZONE-X directly; endpoint+network are on an asset mapped to ZONE-Y. No shared context across all three -> no incident.",
+  "expected": "no_incident",
+  "events": [
+    {
+      "offset_seconds": 0,
+      "event_id": "demo-vision-003",
+      "source": "vision",
+      "event_type": "person_in_restricted_zone",
+      "asset_id": "GATE-CTRL-01",
+      "zone_id": "PERIMETER",
+      "severity": 50,
+      "confidence": 0.7,
+      "attributes": {},
+      "evidence": {}
+    },
+    {
+      "offset_seconds": 5,
+      "event_id": "demo-endpoint-003",
+      "source": "endpoint",
+      "event_type": "usb_device_attached",
+      "asset_id": "SRV-RACK-01",
+      "zone_id": null,
+      "severity": 55,
+      "confidence": 0.65,
+      "attributes": {},
+      "evidence": {}
+    },
+    {
+      "offset_seconds": 9,
+      "event_id": "demo-network-003",
+      "source": "network",
+      "event_type": "outbound_data_anomaly",
+      "asset_id": "SRV-RACK-01",
+      "zone_id": null,
+      "severity": 60,
+      "confidence": 0.6,
+      "attributes": {},
+      "evidence": {}
+    }
+  ]
+}

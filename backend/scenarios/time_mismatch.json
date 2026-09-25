@@ -1,0 +1,42 @@
+{
+  "description": "Same asset/zone as the positive scenario, but the network signal arrives long after the correlation window has closed -> no incident from all three; vision+endpoint alone are below MINIMUM_SOURCE_DIVERSITY.",
+  "expected": "no_incident",
+  "events": [
+    {
+      "offset_seconds": 0,
+      "event_id": "demo-vision-004",
+      "source": "vision",
+      "event_type": "person_in_restricted_zone",
+      "asset_id": "LAB-02",
+      "zone_id": "RESTRICTED-LAB",
+      "severity": 55,
+      "confidence": 0.8,
+      "attributes": {},
+      "evidence": {}
+    },
+    {
+      "offset_seconds": 6,
+      "event_id": "demo-endpoint-004",
+      "source": "endpoint",
+      "event_type": "usb_device_attached",
+      "asset_id": "LAB-02",
+      "zone_id": null,
+      "severity": 60,
+      "confidence": 0.7,
+      "attributes": {},
+      "evidence": {}
+    },
+    {
+      "offset_seconds": 600,
+      "event_id": "demo-network-004",
+      "source": "network",
+      "event_type": "outbound_data_anomaly",
+      "asset_id": "LAB-02",
+      "zone_id": null,
+      "severity": 65,
+      "confidence": 0.6,
+      "attributes": {},
+      "evidence": {}
+    }
+  ]
+}

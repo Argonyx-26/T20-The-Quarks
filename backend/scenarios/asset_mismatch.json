@@ -1,0 +1,42 @@
+{
+  "description": "Vision+network agree on asset LAB-A, endpoint reports unrelated asset LAB-B -> only 2 sources ever share context, below MINIMUM_SOURCE_DIVERSITY (3) -> no incident.",
+  "expected": "no_incident",
+  "events": [
+    {
+      "offset_seconds": 0,
+      "event_id": "demo-vision-002",
+      "source": "vision",
+      "event_type": "loitering",
+      "asset_id": "LAB-A",
+      "zone_id": null,
+      "severity": 40,
+      "confidence": 0.6,
+      "attributes": {},
+      "evidence": {}
+    },
+    {
+      "offset_seconds": 4,
+      "event_id": "demo-endpoint-002",
+      "source": "endpoint",
+      "event_type": "suspicious_process",
+      "asset_id": "LAB-B",
+      "zone_id": null,
+      "severity": 45,
+      "confidence": 0.55,
+      "attributes": {},
+      "evidence": {}
+    },
+    {
+      "offset_seconds": 8,
+      "event_id": "demo-network-002",
+      "source": "network",
+      "event_type": "port_scan",
+      "asset_id": "LAB-A",
+      "zone_id": null,
+      "severity": 50,
+      "confidence": 0.5,
+      "attributes": {},
+      "evidence": {}
+    }
+  ]
+}
