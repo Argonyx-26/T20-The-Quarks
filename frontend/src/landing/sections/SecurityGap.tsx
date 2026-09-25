@@ -71,7 +71,7 @@ export function SecurityGap() {
         </div>
       </Reveal>
 
-      <p className="relative -mt-2 text-center font-mono text-[10px] text-ink-faint">
+      <p className="relative mt-6 text-center font-mono text-[10px] text-ink-faint lg:-mt-2">
         Illustrative demo scenario — device IPs shown for storytelling only
       </p>
 

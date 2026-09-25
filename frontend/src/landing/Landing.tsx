@@ -1,3 +1,4 @@
+import { AmbientBackground } from "./shared/AmbientBackground";
 import { Nav } from "./shared/Nav";
 import { SystemStrip } from "./shared/SystemStrip";
 import { Hero } from "./sections/Hero";
@@ -13,6 +14,7 @@ import { FinalCtaFooter } from "./sections/FinalCtaFooter";
 export default function Landing() {
   return (
     <div className="min-h-screen bg-base-800 pb-0 text-ink lg:pb-20">
+      <AmbientBackground />
       <Nav />
       <Hero />
       <StatsRail />

@@ -42,7 +42,9 @@ export function ContextEngineScene({ activeStep, highestStep }: { activeStep: nu
   const showInputs = activeStep === 0;
 
   return (
-    <div className="relative mx-auto w-full" style={{ aspectRatio: `${BOX.w}/${BOX.h}`, maxWidth: 820 }} aria-hidden="true">
+    <>
+      <MobileEngineStack coreState={coreState} resolved={resolved} showInputs={showInputs} highestStep={highestStep} />
+      <div className="relative mx-auto hidden w-full lg:block" style={{ aspectRatio: `${BOX.w}/${BOX.h}`, maxWidth: 820 }} aria-hidden="true">
       <div className="pointer-events-none absolute inset-0">
         <div
           className="absolute inset-0"
@@ -146,9 +148,7 @@ export function ContextEngineScene({ activeStep, highestStep }: { activeStep: nu
       ))}
 
       <div className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: pct(CORE.x, BOX.w), top: pct(CORE.y, BOX.h) }}>
-        <div className="scale-[0.62] sm:scale-100">
-          <ContextCore size={320} state={coreState} interactive />
-        </div>
+        <ContextCore size={320} state={coreState} interactive />
       </div>
 
       {/* output readout -- a small instrument module, not floating text */}
@@ -181,6 +181,72 @@ export function ContextEngineScene({ activeStep, highestStep }: { activeStep: nu
           </>
         )}
       </div>
+    </div>
+    </>
+  );
+}
+
+/** Narrow-viewport fallback -- the desktop scene positions signal labels and
+ * the output readout by percentage anchors inside a fixed-aspect box, which
+ * only leaves room for the Core at real width. Below `lg` it collides, so
+ * mobile gets an independent, non-absolute layout: a smaller centered Core
+ * with the same three signals (or the same readout) stacked underneath. */
+function MobileEngineStack({
+  coreState,
+  resolved,
+  showInputs,
+  highestStep,
+}: {
+  coreState: "idle" | "aligning" | "locked";
+  resolved: boolean;
+  showInputs: boolean;
+  highestStep: number;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-6 lg:hidden">
+      <ContextCore size={168} state={coreState} interactive={false} />
+
+      {showInputs ? (
+        <div className="flex w-full max-w-[320px] flex-col gap-4">
+          {SIGNALS.map((s) => (
+            <div key={s.key} className="flex items-start gap-2.5">
+              <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
+              <div>
+                <span className="font-mono text-[10px] font-semibold tracking-[0.06em]" style={{ color: s.color }}>
+                  {s.label}
+                </span>
+                <p className="mt-0.5 text-[12.5px] font-medium text-ink">{s.human}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div
+          className="w-full max-w-[280px] border-l-2 py-1.5 pl-3 text-left"
+          style={{ borderColor: resolved ? "#C75D56" : "rgba(18,55,54,0.18)" }}
+        >
+          {resolved ? (
+            <>
+              <div className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-status-critical" />
+                <span className="font-mono text-[10px] font-bold leading-tight tracking-[0.06em] text-status-critical">CONTEXT RESOLVED</span>
+              </div>
+              <p className="mt-1.5 font-mono text-[13px] font-bold leading-tight text-ink">INC-0001</p>
+              <p className="mt-0.5 text-[11.5px] leading-snug text-ink-muted">Suspicious multi-signal activity</p>
+              <div className="mt-1.5 flex flex-col gap-0.5 font-mono text-[10px] text-ink-faint">
+                <span>92% confidence</span>
+                <span>3 signals</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <span className="font-mono text-[10px] font-bold leading-tight tracking-[0.06em] text-ink-faint">CONTEXT UNRESOLVED</span>
+              <p className="mt-1 text-[11.5px] leading-snug text-ink-faint">Awaiting contextual alignment</p>
+              <p className="mt-1 font-mono text-[10px] text-ink-faint">{highestStep} / 5 criteria checked</p>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
