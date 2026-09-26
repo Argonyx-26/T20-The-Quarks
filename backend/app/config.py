@@ -87,3 +87,37 @@ ASSET_ZONE_MAP: dict[str, str] = _load_asset_zone_map()
 
 ALLOWED_SOURCES = {"vision", "endpoint", "network"}
 ALLOWED_STATUSES = {"OPEN", "ACKNOWLEDGED", "RESOLVED"}
+
+# ---------------------------------------------------------------------------
+# Device pairing / realtime notification
+# ---------------------------------------------------------------------------
+
+# How long a QR/pairing token stays valid before it must be re-issued.
+PAIRING_TTL_SECONDS = float(os.environ.get("SENTRIX_PAIRING_TTL_SECONDS", 300))
+
+# A created/updated incident broadcasts a minimal alert to paired phones only
+# when its severity meets this bar. Backend-owned -- a phone client never
+# decides this itself.
+ALERT_SEVERITY_THRESHOLD = int(os.environ.get("SENTRIX_ALERT_SEVERITY_THRESHOLD", 70))
+
+# Device heartbeat freshness -> status. Mirrors SENSOR_STALE_SECONDS above:
+# a device is ONLINE while recently heard from, DEGRADED once a heartbeat is
+# overdue, OFFLINE once several are missed. A device that has never sent a
+# heartbeat is UNKNOWN, never coerced to ONLINE.
+DEVICE_DEGRADED_SECONDS = float(os.environ.get("SENTRIX_DEVICE_DEGRADED_SECONDS", 20))
+DEVICE_OFFLINE_SECONDS = float(os.environ.get("SENTRIX_DEVICE_OFFLINE_SECONDS", 45))
+
+# How often the background monitor re-checks device freshness and broadcasts
+# device.updated/device.disconnected for status transitions nobody's
+# heartbeat happened to trigger (see main.py:device_status_monitor). Keeps
+# Mission Control's device list honest without the frontend polling.
+DEVICE_MONITOR_INTERVAL_SECONDS = float(os.environ.get("SENTRIX_DEVICE_MONITOR_INTERVAL_SECONDS", 5))
+
+# Only trust X-Forwarded-For for the observed device IP when explicitly told
+# to -- this backend has no reverse proxy in front of it by default, and a
+# LAN client hitting it directly could otherwise spoof the header. The
+# Vite dev proxy (frontend/vite.config.ts) sets this header automatically,
+# so a same-laptop LAN demo can opt in.
+TRUST_PROXY_HEADERS = os.environ.get("SENTRIX_TRUST_PROXY_HEADERS", "false").lower() == "true"
+
+ALLOWED_DEVICE_STATUSES = {"ONLINE", "DEGRADED", "OFFLINE", "UNKNOWN"}

@@ -10,10 +10,20 @@ from __future__ import annotations
 
 import asyncio
 import itertools
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from .models import Event, Incident
+from . import config
+from .models import Device, DeviceStatus, Event, Incident
+
+
+@dataclass
+class PairingRecord:
+    token: str
+    created_at: datetime
+    expires_at: datetime
+    used: bool = False
 
 
 class Store:
@@ -24,6 +34,9 @@ class Store:
         self._sensor_last_seen: dict[str, datetime] = {}
         self._incident_seq = itertools.count(1)
         self.started_at = datetime.now(timezone.utc)
+        self._pairing_tokens: dict[str, PairingRecord] = {}
+        self._devices: dict[str, Device] = {}
+        self._device_credentials: dict[str, str] = {}  # device_token -> device_id
 
     # -- events ------------------------------------------------------------
 
@@ -80,6 +93,94 @@ class Store:
     def sensor_last_seen(self) -> dict[str, datetime]:
         return dict(self._sensor_last_seen)
 
+    # -- pairing ---------------------------------------------------------
+
+    def create_pairing_token(self, token: str, now: datetime, ttl_seconds: float) -> PairingRecord:
+        record = PairingRecord(token=token, created_at=now, expires_at=now + timedelta(seconds=ttl_seconds))
+        self._pairing_tokens[token] = record
+        return record
+
+    def get_pairing(self, token: str) -> Optional[PairingRecord]:
+        return self._pairing_tokens.get(token)
+
+    def consume_pairing(self, token: str) -> None:
+        record = self._pairing_tokens.get(token)
+        if record is not None:
+            record.used = True
+
+    # -- devices -----------------------------------------------------------
+
+    def compute_device_status(self, device: Device, now: datetime) -> DeviceStatus:
+        age = (now - device.last_seen).total_seconds()
+        if age <= config.DEVICE_DEGRADED_SECONDS:
+            return "ONLINE"
+        if age <= config.DEVICE_OFFLINE_SECONDS:
+            return "DEGRADED"
+        return "OFFLINE"
+
+    def register_device(
+        self,
+        device_id: str,
+        device_token: str,
+        display_name: str,
+        device_type: str,
+        ip_address: Optional[str],
+        now: datetime,
+    ) -> Device:
+        device = Device(
+            device_id=device_id,
+            display_name=display_name,
+            device_type=device_type,
+            ip_address=ip_address,
+            status="ONLINE",
+            first_seen=now,
+            last_seen=now,
+            paired_at=now,
+        )
+        self._devices[device_id] = device
+        self._device_credentials[device_token] = device_id
+        return device
+
+    def get_device(self, device_id: str) -> Optional[Device]:
+        device = self._devices.get(device_id)
+        if device is None:
+            return None
+        device.status = self.compute_device_status(device, datetime.now(timezone.utc))
+        return device
+
+    def list_devices(self) -> list[Device]:
+        now = datetime.now(timezone.utc)
+        devices = []
+        for device in self._devices.values():
+            device.status = self.compute_device_status(device, now)
+            devices.append(device)
+        return sorted(devices, key=lambda d: d.paired_at or d.first_seen)
+
+    def validate_device_credential(self, device_id: str, device_token: Optional[str]) -> bool:
+        if not device_token:
+            return False
+        return self._device_credentials.get(device_token) == device_id
+
+    def touch_device_heartbeat(self, device_id: str, now: datetime) -> Optional[Device]:
+        device = self._devices.get(device_id)
+        if device is None:
+            return None
+        device.last_seen = now
+        device.status = self.compute_device_status(device, now)
+        return device
+
+    def recompute_all_device_statuses(self, now: datetime) -> list[tuple[Device, DeviceStatus]]:
+        """Returns (device, previous_status) for every device whose status
+        just changed, so the caller can decide what to broadcast."""
+        changed: list[tuple[Device, DeviceStatus]] = []
+        for device in self._devices.values():
+            new_status = self.compute_device_status(device, now)
+            if new_status != device.status:
+                previous = device.status
+                device.status = new_status
+                changed.append((device, previous))
+        return changed
+
     # -- lifecycle -------------------------------------------------------
 
     def reset(self) -> None:
@@ -88,6 +189,9 @@ class Store:
         self._sensor_last_seen.clear()
         self._incident_seq = itertools.count(1)
         self.started_at = datetime.now(timezone.utc)
+        self._pairing_tokens.clear()
+        self._devices.clear()
+        self._device_credentials.clear()
 
     def stats(self) -> dict:
         return {

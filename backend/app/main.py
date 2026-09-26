@@ -10,11 +10,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import secrets
+import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import config
@@ -25,7 +28,15 @@ from .store import store
 from .validation import EventRejected, parse_event
 from .ws import manager
 
-app = FastAPI(title="SENTRIX Fusion Backend", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    monitor_task = asyncio.create_task(_device_status_monitor())
+    yield
+    monitor_task.cancel()
+
+
+app = FastAPI(title="SENTRIX Fusion Backend", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -85,6 +96,22 @@ async def ingest_event(payload: dict[str, Any]) -> tuple[Event, Optional[Inciden
     await manager.broadcast("event.created", event.model_dump())
     if incident is not None:
         await manager.broadcast("incident.created" if created else "incident.updated", incident.model_dump())
+        # Notification policy lives here, not in fusion.py: fusion decides
+        # *whether signals relate*, this decides *who gets paged*. Only on
+        # brand-new incidents (not every subsequent update to the same one,
+        # which would re-siren paired phones for a single ongoing event).
+        if created and incident.severity >= config.ALERT_SEVERITY_THRESHOLD:
+            log_stage("ALERT_QUALIFIED", incident_id=incident.incident_id, severity=incident.severity, threshold=config.ALERT_SEVERITY_THRESHOLD)
+            await manager.broadcast_alert(
+                "incident.alert",
+                {
+                    "incidentId": incident.incident_id,
+                    "severity": incident.severity,
+                    "title": incident.summary,
+                    "deviceName": incident.asset_id,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+            )
 
     return event, incident, created, False
 
@@ -167,6 +194,109 @@ async def set_incident_status(incident_id: str, payload: dict[str, Any]):
 
 
 # ---------------------------------------------------------------------------
+# Device pairing + registry
+#
+# A device only exists here after a real pairing confirmation -- there is
+# no synthesized/event-derived device list on this path. IP is observed,
+# never trusted as identity; device_id (server-minted) is identity.
+# ---------------------------------------------------------------------------
+
+def _observed_ip(request: Request) -> Optional[str]:
+    """The IP as seen by whatever connects directly to this process. Only
+    reads X-Forwarded-For when SENTRIX_TRUST_PROXY_HEADERS is explicitly
+    set (see config.py) -- otherwise a LAN client hitting this backend
+    directly could spoof the header."""
+    if config.TRUST_PROXY_HEADERS:
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else None
+
+
+def _device_token_from_request(request: Request) -> Optional[str]:
+    header = request.headers.get("x-device-token")
+    if header:
+        return header
+    auth = request.headers.get("authorization", "")
+    if auth.lower().startswith("bearer "):
+        return auth[7:].strip()
+    return None
+
+
+@app.post("/api/pairing")
+async def create_pairing():
+    token = secrets.token_urlsafe(24)
+    now = datetime.now(timezone.utc)
+    async with store.lock:
+        record = store.create_pairing_token(token, now, config.PAIRING_TTL_SECONDS)
+    log_stage("PAIRING_CREATED", token_prefix=token[:8], expires_at=record.expires_at.isoformat())
+    return {"token": token, "expires_at": record.expires_at.isoformat(), "ttl_seconds": config.PAIRING_TTL_SECONDS}
+
+
+@app.get("/api/pairing/{token}")
+async def get_pairing_status(token: str):
+    record = store.get_pairing(token)
+    if record is None:
+        raise HTTPException(status_code=404, detail={"error": "not_found", "detail": "unknown pairing token"})
+    now = datetime.now(timezone.utc)
+    valid = (not record.used) and now < record.expires_at
+    return {
+        "valid": valid,
+        "used": record.used,
+        "expired": now >= record.expires_at,
+        "expires_at": record.expires_at.isoformat(),
+        "session_label": "SENTRIX Mission Control",
+    }
+
+
+@app.post("/api/pairing/{token}/confirm")
+async def confirm_pairing(token: str, payload: dict[str, Any], request: Request):
+    async with store.lock:
+        record = store.get_pairing(token)
+        if record is None:
+            raise HTTPException(status_code=404, detail={"error": "not_found", "detail": "unknown pairing token"})
+        now = datetime.now(timezone.utc)
+        if record.used:
+            raise HTTPException(status_code=409, detail={"error": "token_used", "detail": "pairing token already used"})
+        if now >= record.expires_at:
+            raise HTTPException(status_code=410, detail={"error": "token_expired", "detail": "pairing token expired"})
+
+        store.consume_pairing(token)
+        device_id = str(uuid.uuid4())
+        device_token = secrets.token_urlsafe(32)
+        display_name = str(payload.get("display_name") or "Paired Device").strip()[:60] or "Paired Device"
+        device_type = str(payload.get("device_type") or "mobile").strip()[:30] or "mobile"
+        ip_address = _observed_ip(request)
+
+        device = store.register_device(device_id, device_token, display_name, device_type, ip_address, now)
+        log_stage("DEVICE_PAIRED", device_id=device_id, display_name=display_name, ip_address=ip_address)
+
+    await manager.broadcast("device.connected", device.model_dump())
+    return {"device_id": device_id, "device_token": device_token, "status": device.status}
+
+
+@app.get("/api/devices")
+async def get_devices():
+    devices = store.list_devices()
+    return {"count": len(devices), "devices": [d.model_dump() for d in devices]}
+
+
+@app.post("/api/devices/{device_id}/heartbeat")
+async def device_heartbeat(device_id: str, request: Request):
+    device_token = _device_token_from_request(request)
+    async with store.lock:
+        if not store.validate_device_credential(device_id, device_token):
+            raise HTTPException(status_code=401, detail={"error": "unauthorized", "detail": "invalid device credential"})
+        now = datetime.now(timezone.utc)
+        device = store.touch_device_heartbeat(device_id, now)
+        if device is None:
+            raise HTTPException(status_code=404, detail={"error": "not_found", "detail": f"no device {device_id}"})
+
+    await manager.broadcast("device.updated", device.model_dump())
+    return device.model_dump()
+
+
+# ---------------------------------------------------------------------------
 # Health / config
 # ---------------------------------------------------------------------------
 
@@ -204,6 +334,10 @@ async def get_config():
         "minimum_combined_severity": config.MINIMUM_COMBINED_SEVERITY,
         "asset_zone_map": config.ASSET_ZONE_MAP,
         "allowed_sources": sorted(config.ALLOWED_SOURCES),
+        "pairing_ttl_seconds": config.PAIRING_TTL_SECONDS,
+        "alert_severity_threshold": config.ALERT_SEVERITY_THRESHOLD,
+        "device_degraded_seconds": config.DEVICE_DEGRADED_SECONDS,
+        "device_offline_seconds": config.DEVICE_OFFLINE_SECONDS,
     }
 
 
@@ -272,10 +406,50 @@ async def demo_replay(scenario_name: str, live: bool = True, speed: float = 1.0)
 
 
 @app.websocket("/ws")
-async def websocket_endpoint(ws: WebSocket):
+async def websocket_endpoint(
+    ws: WebSocket,
+    role: str = "mission_control",
+    device_id: Optional[str] = None,
+    token: Optional[str] = None,
+):
+    if role == "paired_device":
+        # A query string alone is never sufficient authorization -- the
+        # credential (`token`, the device_token minted at pairing confirm)
+        # must actually validate against the device_id it claims to be.
+        if not device_id or not token or not store.validate_device_credential(device_id, token):
+            log_stage("WS_REJECTED", role="paired_device", device_id=device_id)
+            await ws.close(code=4401)
+            return
+        await manager.connect_paired(ws, device_id)
+        try:
+            while True:
+                await ws.receive_text()
+        except WebSocketDisconnect:
+            manager.disconnect_paired(ws)
+        return
+
     await manager.connect(ws)
     try:
         while True:
             await ws.receive_text()  # clients don't need to send anything; keeps connection open
     except WebSocketDisconnect:
         manager.disconnect(ws)
+
+
+# ---------------------------------------------------------------------------
+# Background device-status monitor -- the only proactive (non-request-driven)
+# behavior in this backend. Without it, a device's status would only ever
+# refresh when something happened to call GET /api/devices again; this keeps
+# Mission Control's device list honest (ONLINE -> DEGRADED -> OFFLINE) via
+# realtime pushes instead of the frontend polling.
+# ---------------------------------------------------------------------------
+
+async def _device_status_monitor() -> None:
+    while True:
+        await asyncio.sleep(config.DEVICE_MONITOR_INTERVAL_SECONDS)
+        async with store.lock:
+            changed = store.recompute_all_device_statuses(datetime.now(timezone.utc))
+        for device, previous_status in changed:
+            log_stage("DEVICE_STATUS_CHANGED", device_id=device.device_id, previous=previous_status, current=device.status)
+            msg_type = "device.disconnected" if device.status == "OFFLINE" else "device.updated"
+            await manager.broadcast(msg_type, device.model_dump())

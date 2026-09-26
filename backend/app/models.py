@@ -16,6 +16,7 @@ from . import config
 
 Source = Literal["vision", "endpoint", "network"]
 IncidentStatus = Literal["OPEN", "ACKNOWLEDGED", "RESOLVED"]
+DeviceStatus = Literal["ONLINE", "DEGRADED", "OFFLINE", "UNKNOWN"]
 
 
 class EventIn(BaseModel):
@@ -88,6 +89,35 @@ class Incident(BaseModel):
     timeline: list[TimelineEntry] = Field(default_factory=list)
     reasoning: list[str] = Field(default_factory=list)
     recommended_action: str = ""
+
+
+class Device(BaseModel):
+    """A real, backend-registered device -- created only by a successful
+    pairing confirmation (see /api/pairing/{token}/confirm). Never
+    synthesized from event history; IP is supporting context, never
+    identity (device_id is)."""
+
+    device_id: str
+    display_name: str
+    device_type: str = "mobile"
+    ip_address: Optional[str] = None
+    status: DeviceStatus = "UNKNOWN"
+    first_seen: datetime
+    last_seen: datetime
+    paired_at: Optional[datetime] = None
+
+
+class PairingStatus(BaseModel):
+    valid: bool
+    used: bool
+    expires_at: datetime
+    session_label: str = "SENTRIX Mission Control"
+
+
+class PairingConfirmResult(BaseModel):
+    device_id: str
+    device_token: str
+    status: DeviceStatus
 
 
 class ValidationErrorDetail(BaseModel):
