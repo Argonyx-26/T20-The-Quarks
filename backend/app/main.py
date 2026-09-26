@@ -17,13 +17,14 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import config
 from .fusion import FusionEngine, resolve_zone
 from .logging_conf import log_stage
 from .models import Event, EventIn, Incident, IngestError, ValidationErrorDetail
+from .security import BodySizeLimitMiddleware, SecurityHeadersMiddleware, rate_limit, websocket_origin_allowed
 from .store import store
 from .validation import EventRejected, parse_event
 from .ws import manager
@@ -36,11 +37,23 @@ async def lifespan(app: FastAPI):
     monitor_task.cancel()
 
 
-app = FastAPI(title="SENTRIX Fusion Backend", version="1.0.0", lifespan=lifespan)
+app = FastAPI(
+    title="SENTRIX Fusion Backend",
+    version="1.0.0",
+    docs_url="/docs" if config.ENABLE_DOCS else None,
+    redoc_url="/redoc" if config.ENABLE_DOCS else None,
+    openapi_url="/openapi.json" if config.ENABLE_DOCS else None,
+    lifespan=lifespan,
+)
 
+# Order matters: Starlette applies middleware in reverse of the order added,
+# so CORS (added last) runs outermost and security headers land on every
+# response including CORS preflights and error responses.
+app.add_middleware(BodySizeLimitMiddleware, max_bytes=config.MAX_BODY_BYTES)
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=config.ALLOWED_ORIGINS,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -120,7 +133,7 @@ async def ingest_event(payload: dict[str, Any]) -> tuple[Event, Optional[Inciden
 # Event endpoints
 # ---------------------------------------------------------------------------
 
-@app.post("/api/events", status_code=201)
+@app.post("/api/events", status_code=201, dependencies=[Depends(rate_limit)])
 async def post_event(payload: dict[str, Any]):
     try:
         event, incident, created, duplicate = await ingest_event(payload)
@@ -174,7 +187,7 @@ async def get_incident(incident_id: str):
     return incident.model_dump()
 
 
-@app.post("/api/incidents/{incident_id}/status")
+@app.post("/api/incidents/{incident_id}/status", dependencies=[Depends(rate_limit)])
 async def set_incident_status(incident_id: str, payload: dict[str, Any]):
     incident = store.get_incident(incident_id)
     if incident is None:
@@ -388,7 +401,7 @@ async def get_config():
 # the exact same function live sensors use. No separate fake pathway.
 # ---------------------------------------------------------------------------
 
-@app.post("/api/demo/reset")
+@app.post("/api/demo/reset", dependencies=[Depends(rate_limit)])
 async def demo_reset():
     async with store.lock:
         store.reset()
@@ -405,7 +418,7 @@ async def demo_scenarios():
     return {"scenarios": names}
 
 
-@app.post("/api/demo/replay/{scenario_name}")
+@app.post("/api/demo/replay/{scenario_name}", dependencies=[Depends(rate_limit)])
 async def demo_replay(scenario_name: str, live: bool = True, speed: float = 1.0):
     path = SCENARIOS_DIR / f"{scenario_name}.json"
     if not path.exists():
@@ -468,6 +481,12 @@ async def websocket_endpoint(
                 await ws.receive_text()
         except WebSocketDisconnect:
             manager.disconnect_paired(ws)
+        return
+
+    origin = ws.headers.get("origin")
+    if not websocket_origin_allowed(origin):
+        log_stage("WS_REJECTED", origin=origin)
+        await ws.close(code=1008)
         return
 
     await manager.connect(ws)

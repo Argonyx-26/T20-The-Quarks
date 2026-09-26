@@ -89,6 +89,45 @@ ALLOWED_SOURCES = {"vision", "endpoint", "network"}
 ALLOWED_STATUSES = {"OPEN", "ACKNOWLEDGED", "RESOLVED"}
 
 # ---------------------------------------------------------------------------
+# Security
+# ---------------------------------------------------------------------------
+
+# Deployment mode. "production" tightens a couple of defaults below
+# (disables interactive API docs, which is the only HTML this JSON backend
+# ever serves). Everything else about error handling is unaffected -- the
+# app never runs with FastAPI's `debug=True`, so unhandled exceptions
+# already return a generic 500 with no stack trace regardless of this flag.
+ENV = os.environ.get("SENTRIX_ENV", "development")
+ENABLE_DOCS = ENV != "production"
+
+# CORS: only these origins may call the API from a browser. Never "*" --
+# the frontend dev server's own ports, explicitly, plus anything an
+# operator adds for a deployed demo box.
+_DEFAULT_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+ALLOWED_ORIGINS: list[str] = [
+    o.strip()
+    for o in os.environ.get("SENTRIX_ALLOWED_ORIGINS", ",".join(_DEFAULT_ALLOWED_ORIGINS)).split(",")
+    if o.strip()
+]
+
+# Hard cap on request body size. Event payloads (including free-form
+# `attributes`/`evidence`) are small JSON documents; this just stops a
+# client from sending an arbitrarily large body to exhaust memory.
+MAX_BODY_BYTES = int(os.environ.get("SENTRIX_MAX_BODY_BYTES", 64 * 1024))
+
+# Per-client-IP rate limits for mutation routes (event ingestion + demo
+# control + incident status). Generous by design -- this exists to blunt
+# accidental request storms (a buggy sensor loop, a double-clicked demo
+# button), not to police a controlled hackathon demo. `request.client.host`
+# is trusted directly; there is no reverse proxy in front of this backend,
+# so `X-Forwarded-For` is deliberately never trusted as the client identity.
+RATE_LIMIT_MAX_REQUESTS = int(os.environ.get("SENTRIX_RATE_LIMIT_REQUESTS", 120))
+RATE_LIMIT_WINDOW_SECONDS = float(os.environ.get("SENTRIX_RATE_LIMIT_WINDOW_SECONDS", 10))
+
+# ---------------------------------------------------------------------------
 # Device pairing / realtime notification
 # ---------------------------------------------------------------------------
 
