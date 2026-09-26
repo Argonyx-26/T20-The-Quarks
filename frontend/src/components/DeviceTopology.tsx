@@ -154,13 +154,16 @@ export function DeviceTopology({ devices, incidents, lastEvaluation, selectedDev
               const lineStyle = getConnectionLineStyle(device);
 
               // Draw curved line from hub to device
-              const hubY = h / 2;
-              const ctrlX = 20 + zi * colW - 60;
+              const startX = HUB_X + 40;
+              const startY = h / 2;
+              const endX = pos.x - 30;
+              const endY = pos.y;
+              const midX = (startX + endX) / 2;
 
               return (
                 <path
                   key={`conn-${deviceId}`}
-                  d={`M ${HUB_X + 40} ${hubY} C ${ctrlX} ${hubY}, ${ctrlX} ${pos.y}, ${pos.x - colW / 2 + 20} ${pos.y}`}
+                  d={`M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`}
                   fill="none"
                   stroke={lineStyle.stroke}
                   strokeWidth={lineStyle.strokeWidth}

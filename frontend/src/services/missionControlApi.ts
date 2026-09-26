@@ -357,17 +357,22 @@ class SentrixMissionControlApi implements MissionControlClient {
   }
 
   async getSnapshot(): Promise<MissionControlSnapshot> {
-    const [devices, events, incidents, sourceHealth] = await Promise.all([
+    const [devicesResult, eventsResult, incidentsResult, sourceHealthResult] = await Promise.allSettled([
       this.getDevices(),
       this.getEvents(300),
       this.getIncidents(),
       this.getSourceHealth(),
     ]);
+
     return {
-      devices,
-      events,
-      incidents,
-      sourceHealth,
+      devices: devicesResult.status === "fulfilled" ? devicesResult.value : [],
+      events: eventsResult.status === "fulfilled" ? eventsResult.value : [],
+      incidents: incidentsResult.status === "fulfilled" ? incidentsResult.value : [],
+      sourceHealth: sourceHealthResult.status === "fulfilled" ? sourceHealthResult.value : [
+        { source: "vision", status: "unknown" },
+        { source: "endpoint", status: "unknown" },
+        { source: "network", status: "unknown" }
+      ],
       realtimeStatus: "connecting",
     };
   }
