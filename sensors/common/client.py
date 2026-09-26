@@ -89,3 +89,19 @@ class BackendClient:
         resp = requests.get(f"{self.base_url}/api/incidents", params=params, timeout=self.timeout)
         resp.raise_for_status()
         return resp.json()
+
+    def list_devices(self) -> dict:
+        try:
+            resp = requests.get(f"{self.base_url}/api/devices", timeout=self.timeout)
+            resp.raise_for_status()
+            return resp.json()
+        except requests.RequestException as exc:
+            raise BackendUnreachable(str(exc)) from exc
+
+    def observe_device(self, observation: dict) -> dict:
+        try:
+            resp = requests.post(f"{self.base_url}/api/devices/observe", json=observation, timeout=self.timeout)
+            resp.raise_for_status()
+            return resp.json()
+        except requests.RequestException as exc:
+            raise BackendUnreachable(str(exc)) from exc

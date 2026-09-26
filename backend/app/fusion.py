@@ -163,14 +163,17 @@ class FusionEngine:
         sources = sorted({e.source for e in group})
         
         # RISK ASSESSMENT FOR ENDPOINT DEMO
+        # Large file transfer + a corroborating network signal in the same
+        # window = suspicious. This is a size/volume heuristic on the
+        # transfer itself, not a device-identity decision -- it never
+        # decides *which* physical device sent it (that's the USB
+        # detector's job, sensors/usb_device_detector.py, and it never
+        # feeds fusion).
         transfer_event = next((e for e in group if e.event_type.startswith("file_transfer")), None)
         network_event = next((e for e in group if e.source == "network"), None)
         if transfer_event and network_event:
-            # Configured Demo Rule: 
-            # Unusual transfer + unexpected device + network deviation = Suspicious
             vol = transfer_event.attributes.get("file_size", 0)
-            device_expected = transfer_event.attributes.get("device_expected", True)
-            if vol > 50000000 and not device_expected:
+            if vol > 50000000:
                 severity = max(severity, 85)
                 confidence = max(confidence, 0.95)
 

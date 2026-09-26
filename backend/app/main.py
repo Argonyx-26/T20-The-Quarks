@@ -275,6 +275,48 @@ async def confirm_pairing(token: str, payload: dict[str, Any], request: Request)
     return {"device_id": device_id, "device_token": device_token, "status": device.status, "ip_address": device.ip_address}
 
 
+@app.post("/api/devices/observe")
+async def observe_device(payload: dict[str, Any], request: Request):
+    """Trusted LOCAL sensor endpoint -- sensors/usb_sensor_daemon.py reports
+    real macOS USB observations here. Deliberately restricted to localhost:
+    this is not the QR-pairing path (no token, no credential), so it must
+    never be reachable from an arbitrary LAN client claiming to be hardware.
+    If the backend is ever deployed off the sensor's machine, this endpoint
+    needs a real trust mechanism -- documented, not silently left open."""
+    peer = request.client.host if request.client else None
+    if peer not in ("127.0.0.1", "::1"):
+        raise HTTPException(status_code=403, detail={"error": "forbidden", "detail": "device observation is local-sensor only"})
+
+    hardware_id = str(payload.get("hardware_id") or "").strip()
+    if not hardware_id:
+        raise HTTPException(status_code=422, detail={"error": "invalid_observation", "detail": "hardware_id is required"})
+
+    manufacturer = payload.get("manufacturer")
+    product_name = payload.get("product_name")
+    likely_phone = bool(payload.get("likely_phone"))
+    device_type = "phone" if likely_phone else "usb_device"
+    # Presentable but never invented: real manufacturer + a real MTP/PTP
+    # signal is enough to say "phone" honestly, without guessing a model
+    # macOS didn't actually tell us (no "Galaxy S24" out of a raw product
+    # string like "KALAMA-MTP_CID:0437_SN:..."). Falls back to the raw
+    # product string, then a fully generic label, only when there's
+    # nothing better to show.
+    if manufacturer and likely_phone:
+        display_name = f"{manufacturer} device"
+    elif manufacturer:
+        display_name = f"{manufacturer} USB device"
+    else:
+        display_name = str(product_name or "USB device").strip()
+
+    async with store.lock:
+        now = datetime.now(timezone.utc)
+        device, created = store.register_or_touch_observed_device(hardware_id, display_name, device_type, manufacturer, now)
+
+    log_stage("USB_DEVICE_OBSERVED", device_id=device.device_id, created=created, manufacturer=manufacturer)
+    await manager.broadcast("device.connected" if created else "device.updated", device.model_dump())
+    return device.model_dump()
+
+
 @app.get("/api/devices")
 async def get_devices():
     devices = store.list_devices()

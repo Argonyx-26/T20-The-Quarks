@@ -4,3 +4,10 @@ pydantic>=2.7
 httpx>=0.27
 pytest>=8.0
 websockets>=12.0
+
+# scripts/start.sh runs sensors/mac_endpoint_agent.py and
+# sensors/usb_sensor_daemon.py through THIS venv (backend/.venv), not a
+# separate sensors venv -- these must be installed here or both sensors
+# fail at import time with no visible error until someone checks the log.
+requests>=2.31
+watchdog>=4.0

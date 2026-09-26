@@ -37,6 +37,7 @@ class Store:
         self._pairing_tokens: dict[str, PairingRecord] = {}
         self._devices: dict[str, Device] = {}
         self._device_credentials: dict[str, str] = {}  # device_token -> device_id
+        self._devices_by_hardware_id: dict[str, str] = {}  # usb hardware_id -> device_id
 
     # -- events ------------------------------------------------------------
 
@@ -136,10 +137,52 @@ class Store:
             first_seen=now,
             last_seen=now,
             paired_at=now,
+            transport="paired_web",
         )
         self._devices[device_id] = device
         self._device_credentials[device_token] = device_id
         return device
+
+    # -- USB-observed devices (sensors/usb_device_detector.py) ----------------
+    # A distinct registration path from QR pairing: no token, no credential,
+    # trusted only because /api/devices/observe is restricted to localhost
+    # (see main.py) -- the sensor runs on the same machine as the backend.
+
+    def get_device_by_hardware_id(self, hardware_id: str) -> Optional[Device]:
+        device_id = self._devices_by_hardware_id.get(hardware_id)
+        return self.get_device(device_id) if device_id else None
+
+    def register_or_touch_observed_device(
+        self,
+        hardware_id: str,
+        display_name: str,
+        device_type: str,
+        manufacturer: Optional[str],
+        now: datetime,
+    ) -> tuple[Device, bool]:
+        """Returns (device, created). Same hardware_id always maps to the
+        same device_id -- a replug never creates a duplicate."""
+        existing_id = self._devices_by_hardware_id.get(hardware_id)
+        if existing_id and existing_id in self._devices:
+            device = self._devices[existing_id]
+            device.last_seen = now
+            device.status = self.compute_device_status(device, now)
+            return device, False
+
+        device_id = existing_id or f"usb-{hardware_id[:16]}"
+        device = Device(
+            device_id=device_id,
+            display_name=display_name,
+            device_type=device_type,
+            status="ONLINE",
+            first_seen=now,
+            last_seen=now,
+            transport="usb",
+            manufacturer=manufacturer,
+        )
+        self._devices[device_id] = device
+        self._devices_by_hardware_id[hardware_id] = device_id
+        return device, True
 
     def get_device(self, device_id: str) -> Optional[Device]:
         device = self._devices.get(device_id)
@@ -192,6 +235,7 @@ class Store:
         self._pairing_tokens.clear()
         self._devices.clear()
         self._device_credentials.clear()
+        self._devices_by_hardware_id.clear()
 
     def stats(self) -> dict:
         return {

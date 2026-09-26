@@ -17,6 +17,7 @@ from . import config
 Source = Literal["vision", "endpoint", "network"]
 IncidentStatus = Literal["OPEN", "ACKNOWLEDGED", "RESOLVED"]
 DeviceStatus = Literal["ONLINE", "DEGRADED", "OFFLINE", "UNKNOWN"]
+DeviceTransport = Literal["usb", "paired_web", "unknown"]
 
 
 class EventIn(BaseModel):
@@ -105,6 +106,11 @@ class Device(BaseModel):
     first_seen: datetime
     last_seen: datetime
     paired_at: Optional[datetime] = None
+    # "usb": locally observed by sensors/usb_device_detector.py (real macOS
+    # IOKit data). "paired_web": QR-paired, browser-side. Never conflate --
+    # Mission Control renders each with a different affordance.
+    transport: DeviceTransport = "unknown"
+    manufacturer: Optional[str] = None
 
 
 class PairingStatus(BaseModel):

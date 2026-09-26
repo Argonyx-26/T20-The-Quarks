@@ -11,6 +11,24 @@ from sensors.common.client import BackendClient
 
 WATCH_DIR = str(Path.home() / "Desktop" / "SENTRIX_DEMO_TRANSFER")
 
+
+def lookup_active_usb_device(client: BackendClient):
+    """Honest cross-reference to the real USB detector's registry
+    (sensors/usb_device_detector.py), NOT a fallback identity guess. Only
+    returns a device when exactly one USB-transport device is currently
+    online/degraded -- with zero or multiple candidates, the caller keeps
+    asset_id=MAC-01 and attaches no device attribution rather than
+    arbitrarily picking one."""
+    try:
+        devices = client.list_devices().get("devices", [])
+    except Exception:
+        return None
+    usb_devices = [d for d in devices if d.get("transport") == "usb" and d.get("status") in ("ONLINE", "DEGRADED")]
+    if len(usb_devices) != 1:
+        return None
+    d = usb_devices[0]
+    return {"device_id": d["device_id"], "display_name": d["display_name"]}
+
 class TransferHandler(FileSystemEventHandler):
     def __init__(self, client: BackendClient):
         super().__init__()
@@ -47,16 +65,28 @@ class TransferHandler(FileSystemEventHandler):
         duration = time.time() - start_time
         filename = os.path.basename(path)
         is_suspicious = current_size > 50000000
-        device_expected = not is_suspicious
-        
+
         # Determine total_bytes based on known demo files
         total_bytes = 60000000 if "suspicious" in filename else 4800000
-        
+
         import uuid
         from datetime import datetime, timezone
-        
+
         transfer_id = f"transfer-{filename}-{start_time}"
-        
+        attributes = {
+            "transfer_id": transfer_id,
+            "file_size": current_size,
+            "total_bytes": total_bytes,
+            "transfer_direction": "INBOUND",
+            "transfer_duration": duration,
+            "filename": filename,
+            "status": "IN_PROGRESS",
+        }
+        usb_device = lookup_active_usb_device(self.client)
+        if usb_device:
+            attributes["usb_device_id"] = usb_device["device_id"]
+            attributes["usb_device_name"] = usb_device["display_name"]
+
         try:
             self.client.post_event({
                 "event_id": f"demo-endpoint-prog-{uuid.uuid4().hex[:8]}",
@@ -67,17 +97,7 @@ class TransferHandler(FileSystemEventHandler):
                 "zone_id": "LOCAL-DEMO",
                 "severity": 60 if is_suspicious else 20,
                 "confidence": 0.8,
-                "attributes": {
-                    "transfer_id": transfer_id,
-                    "file_size": current_size,
-                    "total_bytes": total_bytes,
-                    "transfer_direction": "INBOUND",
-                    "transfer_duration": duration,
-                    "device": "ANDROID-01" if device_expected else "UNAUTHORIZED-ANDROID",
-                    "device_expected": device_expected,
-                    "filename": filename,
-                    "status": "IN_PROGRESS"
-                },
+                "attributes": attributes,
                 "evidence": {
                     "observation_source": "mac_endpoint_agent",
                     "watch_dir": WATCH_DIR
@@ -94,15 +114,27 @@ class TransferHandler(FileSystemEventHandler):
         filename = os.path.basename(path)
         is_suspicious = final_size > 50000000  # 50MB
         event_type = "file_transfer_anomaly" if is_suspicious else "file_transfer_normal"
-        device_expected = not is_suspicious
-        
+
         total_bytes = 60000000 if "suspicious" in filename else 4800000
         transfer_id = f"transfer-{filename}-{start_time}"
-        
+
         print(f"[MacEndpointAgent] Transfer complete: {filename} ({final_size} bytes, {duration:.1f}s)")
-        
+
         import uuid
         from datetime import datetime, timezone
+        attributes = {
+            "transfer_id": transfer_id,
+            "file_size": final_size,
+            "total_bytes": total_bytes,
+            "transfer_direction": "INBOUND",
+            "transfer_duration": duration,
+            "filename": filename,
+            "status": "COMPLETED",
+        }
+        usb_device = lookup_active_usb_device(self.client)
+        if usb_device:
+            attributes["usb_device_id"] = usb_device["device_id"]
+            attributes["usb_device_name"] = usb_device["display_name"]
         try:
             self.client.post_event({
                 "event_id": f"demo-endpoint-{uuid.uuid4().hex[:8]}",
@@ -113,17 +145,7 @@ class TransferHandler(FileSystemEventHandler):
                 "zone_id": "LOCAL-DEMO",
                 "severity": 60,
                 "confidence": 0.8,
-                "attributes": {
-                    "transfer_id": transfer_id,
-                    "file_size": final_size,
-                    "total_bytes": total_bytes,
-                    "transfer_direction": "INBOUND",
-                    "transfer_duration": duration,
-                    "device": "ANDROID-01" if device_expected else "UNAUTHORIZED-ANDROID",
-                    "device_expected": device_expected,
-                    "filename": filename,
-                    "status": "COMPLETED"
-                },
+                "attributes": attributes,
                 "evidence": {
                     "observation_source": "mac_endpoint_agent",
                     "watch_dir": WATCH_DIR
@@ -209,8 +231,6 @@ def main():
                                     "total_bytes": 60000000,
                                     "transfer_direction": "INBOUND",
                                     "transfer_duration": time.time() - current_time,
-                                    "device": "UNAUTHORIZED-ANDROID",
-                                    "device_expected": False,
                                     "filename": filename,
                                     "status": "FAILED",
                                     "reason": "Active interception triggered"
