@@ -1,25 +1,21 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import type { ConnState, HealthResponse, Source } from "../types";
-import { sensorStatusColor } from "../theme";
+import type { MissionControlSnapshot, RealtimeStatus, Source } from "../domain";
+import { sourceHealthColor } from "../theme";
 import { formatClock } from "../format";
 import { StatusDot } from "./atoms";
+import type { PreviewKey } from "../fixtures/previewKeys";
 
 interface Props {
-  health: HealthResponse | null;
-  connState: ConnState;
-  mode: "LIVE" | "REPLAY";
-  deviceCount: number;
-  eventCount: number;
-  openIncidentCount: number;
-  maxSeverityOpen: number;
+  snapshot: MissionControlSnapshot;
+  previewKey: PreviewKey | null;
 }
 
 const SOURCES: Source[] = ["vision", "endpoint", "network"];
 
-function connLabel(state: ConnState): { text: string; color: string; pulse: boolean } {
+function realtimeLabel(state: RealtimeStatus): { text: string; color: string; pulse: boolean } {
   switch (state) {
-    case "live":
+    case "connected":
       return { text: "CONNECTED", color: "#3D9270", pulse: false };
     case "connecting":
       return { text: "CONNECTING", color: "#B9842D", pulse: true };
@@ -27,6 +23,8 @@ function connLabel(state: ConnState): { text: string; color: string; pulse: bool
       return { text: "RECONNECTING", color: "#B9842D", pulse: true };
     case "disconnected":
       return { text: "DISCONNECTED", color: "#CB514F", pulse: false };
+    case "error":
+      return { text: "ERROR", color: "#CB514F", pulse: false };
   }
 }
 
@@ -41,16 +39,18 @@ function Metric({ value, label, color }: { value: string; label: string; color?:
   );
 }
 
-export function CommandRail({ health, connState, mode, deviceCount, eventCount, openIncidentCount, maxSeverityOpen }: Props) {
+export function TopCommandRail({ snapshot, previewKey }: Props) {
   const [now, setNow] = useState(() => new Date().toISOString());
   useEffect(() => {
     const id = setInterval(() => setNow(new Date().toISOString()), 1000);
     return () => clearInterval(id);
   }, []);
 
-  const conn = connLabel(connState);
-  const healthyCount = SOURCES.filter((s) => health?.sensors[s]?.status === "ok").length;
-  const incidentColor = openIncidentCount === 0 ? "#121718" : maxSeverityOpen >= 80 ? "#C75D56" : "#B9842D";
+  const rt = realtimeLabel(snapshot.realtimeStatus);
+  const healthyCount = SOURCES.filter((s) => snapshot.sourceHealth.find((h) => h.source === s)?.status === "online").length;
+  const openIncidents = snapshot.incidents.filter((i) => i.status === "open");
+  const maxSeverityOpen = openIncidents.reduce((m, i) => Math.max(m, i.severity ?? 0), 0);
+  const incidentColor = openIncidents.length === 0 ? "#121718" : maxSeverityOpen >= 80 ? "#C75D56" : "#B9842D";
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b border-line bg-base-700 px-4">
@@ -61,34 +61,35 @@ export function CommandRail({ health, connState, mode, deviceCount, eventCount, 
         </div>
         <span
           className="rounded-sm border px-1.5 py-0.5 font-mono text-[9.5px] font-semibold tracking-widest"
-          style={{
-            borderColor: mode === "LIVE" ? "#3D927055" : "#4779D855",
-            color: mode === "LIVE" ? "#3D9270" : "#4779D8",
-            backgroundColor: mode === "LIVE" ? "#3D927014" : "#4779D814",
-          }}
+          style={
+            previewKey
+              ? { borderColor: "#4779D855", color: "#4779D8", backgroundColor: "#4779D814" }
+              : { borderColor: "#3D927055", color: "#3D9270", backgroundColor: "#3D927014" }
+          }
+          title={previewKey ? "Rendering a deterministic dev fixture, not live backend data" : undefined}
         >
-          {mode}
+          {previewKey ? `PREVIEW · ${previewKey.toUpperCase()}` : "LIVE"}
         </span>
       </div>
 
       <div className="flex h-full items-center divide-x divide-line-soft">
         <Metric value={`${healthyCount}/${SOURCES.length}`} label="SOURCES ONLINE" color={healthyCount === SOURCES.length ? "#3D9270" : "#B9842D"} />
-        <Metric value={String(deviceCount).padStart(2, "0")} label="DEVICES" />
-        <Metric value={String(eventCount).padStart(2, "0")} label="EVENTS" />
-        <Metric value={String(openIncidentCount).padStart(2, "0")} label="INCIDENTS" color={incidentColor} />
+        <Metric value={String(snapshot.devices.length).padStart(2, "0")} label="DEVICES" />
+        <Metric value={String(snapshot.events.length).padStart(2, "0")} label="EVENTS" />
+        <Metric value={String(openIncidents.length).padStart(2, "0")} label="INCIDENTS" color={incidentColor} />
       </div>
 
       <div className="flex items-center gap-4">
         <div className="hidden items-center gap-1.5 sm:flex">
           {SOURCES.map((s) => {
-            const st = health?.sensors[s]?.status ?? "never_seen";
-            return <StatusDot key={s} color={sensorStatusColor[st]} pulse={st === "stale"} />;
+            const st = snapshot.sourceHealth.find((h) => h.source === s)?.status ?? "unknown";
+            return <StatusDot key={s} color={sourceHealthColor[st]} pulse={st === "degraded"} />;
           })}
         </div>
         <div className="flex items-center gap-1.5">
-          <StatusDot color={conn.color} pulse={conn.pulse} />
-          <span className="font-mono text-[10px] font-medium tracking-wide" style={{ color: conn.color }}>
-            {conn.text}
+          <StatusDot color={rt.color} pulse={rt.pulse} />
+          <span className="font-mono text-[10px] font-medium tracking-wide" style={{ color: rt.color }}>
+            {rt.text}
           </span>
         </div>
         <span className="hidden font-mono text-[11px] text-ink-faint md:inline">{formatClock(now)}</span>

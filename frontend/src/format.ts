@@ -42,6 +42,14 @@ export function formatConfidence(c: number): string {
   return `${Math.round(c * 100)}%`;
 }
 
+export function formatIp(ip: string | undefined): string {
+  return ip ?? "IP unavailable";
+}
+
+export function humanizeEventType(eventType: string): string {
+  return eventType.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+}
+
 export function formatDuration(seconds: number): string {
   if (seconds < 60) return `${seconds.toFixed(1)}s`;
   const m = Math.floor(seconds / 60);

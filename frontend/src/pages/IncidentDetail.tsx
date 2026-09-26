@@ -1,34 +1,24 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { useMissionControl } from "../useMissionControl";
+import { useMissionControlData } from "../hooks/useMissionControlData";
 import { IncidentTimeline } from "../components/IncidentTimeline";
-import { ReasoningPanel } from "../components/ReasoningPanel";
+import { CorrelationBasis } from "../components/CorrelationBasis";
 import { EvidenceDrawer } from "../components/EvidenceDrawer";
 import { SeverityBar, SourceTag } from "../components/atoms";
-import { formatClock, formatConfidence, severityBand, severityBandColor, severityBandLabel } from "../format";
-import type { IncidentStatus, SentrixEvent, Source } from "../types";
+import { formatClock, formatConfidence, formatIp, severityBand, severityBandColor, severityBandLabel } from "../format";
+import { incidentStatusColor, incidentStatusLabel } from "../theme";
+import type { NormalizedEvent, Source } from "../domain";
 
-const STATUS_COLOR: Record<IncidentStatus, string> = {
-  OPEN: "#CB514F",
-  ACKNOWLEDGED: "#B9842D",
-  RESOLVED: "#3D9270",
-};
-
-function sourcesInIncident(timeline: { label: string }[]): Source[] {
-  const set = new Set<Source>();
-  for (const t of timeline) {
-    const src = t.label.split(":")[0] as Source;
-    if (src === "vision" || src === "endpoint" || src === "network") set.add(src);
-  }
-  return Array.from(set);
+function sourcesInIncident(timeline: { source: Source }[]): Source[] {
+  return Array.from(new Set(timeline.map((t) => t.source)));
 }
 
 export default function IncidentDetail() {
   const { incidentId } = useParams<{ incidentId: string }>();
-  const mc = useMissionControl();
-  const [selectedEvent, setSelectedEvent] = useState<SentrixEvent | null>(null);
+  const mc = useMissionControlData();
+  const [selectedEvent, setSelectedEvent] = useState<NormalizedEvent | null>(null);
 
-  if (mc.loading) {
+  if (mc.status === "booting") {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-base-800">
         <span className="text-[11px] text-ink-faint">Connecting to fusion backend…</span>
@@ -36,26 +26,35 @@ export default function IncidentDetail() {
     );
   }
 
-  const incident = mc.incidents.find((i) => i.incident_id === incidentId) ?? null;
-
-  if (!incident) {
+  if (mc.status === "error" || !mc.snapshot) {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center gap-4 bg-base-800 text-center">
-        <p className="font-mono text-[12px] text-ink-faint">
-          {incidentId} {mc.incidents.length > 0 ? "was not found." : "— no incidents in this session yet."}
-        </p>
-        <Link
-          to="/mission-control"
-          className="rounded-sm border border-line px-3 py-1.5 text-[12px] text-ink-muted hover:border-ink-faint hover:text-ink"
-        >
+        <p className="font-mono text-[12px] text-ink-faint">BACKEND UNAVAILABLE</p>
+        <Link to="/mission-control" className="rounded-sm border border-line px-3 py-1.5 text-[12px] text-ink-muted hover:border-ink-faint hover:text-ink">
           ← Back to Mission Control
         </Link>
       </div>
     );
   }
 
-  const band = severityBand(incident.severity);
+  const incident = mc.snapshot.incidents.find((i) => i.incidentId === incidentId) ?? null;
+
+  if (!incident) {
+    return (
+      <div className="flex h-screen w-screen flex-col items-center justify-center gap-4 bg-base-800 text-center">
+        <p className="font-mono text-[12px] text-ink-faint">
+          {incidentId} {mc.snapshot.incidents.length > 0 ? "was not found." : "— no incidents in this session yet."}
+        </p>
+        <Link to="/mission-control" className="rounded-sm border border-line px-3 py-1.5 text-[12px] text-ink-muted hover:border-ink-faint hover:text-ink">
+          ← Back to Mission Control
+        </Link>
+      </div>
+    );
+  }
+
+  const band = severityBand(incident.severity ?? 0);
   const sources = sourcesInIncident(incident.timeline);
+  const statusColor = incidentStatusColor[incident.status];
 
   return (
     <div className="min-h-screen bg-base-800 text-ink">
@@ -65,19 +64,15 @@ export default function IncidentDetail() {
             ← MISSION CONTROL
           </Link>
           <span className="h-4 w-px bg-line" />
-          <span className="font-mono text-[13px] font-semibold text-ink">{incident.incident_id}</span>
+          <span className="font-mono text-[13px] font-semibold text-ink">{incident.incidentId}</span>
           <span
             className="rounded-sm border px-1.5 py-0.5 font-mono text-[10px] tracking-wide"
-            style={{
-              borderColor: `${STATUS_COLOR[incident.status]}55`,
-              color: STATUS_COLOR[incident.status],
-              backgroundColor: `${STATUS_COLOR[incident.status]}14`,
-            }}
+            style={{ borderColor: `${statusColor}55`, color: statusColor, backgroundColor: `${statusColor}14` }}
           >
-            {incident.status}
+            {incidentStatusLabel[incident.status]}
           </span>
         </div>
-        <span className="font-mono text-[10.5px] text-ink-faint">{formatClock(incident.updated_at)} updated</span>
+        <span className="font-mono text-[10.5px] text-ink-faint">{formatClock(incident.updatedAt ?? incident.createdAt)} updated</span>
       </header>
 
       <main className="mx-auto grid max-w-[1200px] gap-4 p-5 lg:grid-cols-[1.1fr_0.9fr]">
@@ -90,30 +85,32 @@ export default function IncidentDetail() {
                 <span className="text-[11px] text-ink-faint">Severity</span>
                 <div className="mt-1 flex items-baseline gap-1.5">
                   <span className="font-mono text-[15px] font-medium" style={{ color: severityBandColor[band] }}>
-                    {incident.severity}
+                    {incident.severity ?? "—"}
                   </span>
                   <span className="text-[11px] text-ink-faint">{severityBandLabel[band]}</span>
                 </div>
                 <div className="mt-1.5">
-                  <SeverityBar severity={incident.severity} />
+                  <SeverityBar severity={incident.severity ?? 0} />
                 </div>
               </div>
               <div>
                 <span className="text-[11px] text-ink-faint">Confidence</span>
                 <div className="mt-1 font-mono text-[15px] font-medium text-ink">
-                  {formatConfidence(incident.confidence)}
+                  {incident.confidence !== undefined ? formatConfidence(incident.confidence) : "—"}
                 </div>
                 <div className="mt-1.5">
-                  <SeverityBar severity={incident.confidence * 100} />
+                  <SeverityBar severity={(incident.confidence ?? 0) * 100} />
                 </div>
               </div>
               <div>
-                <span className="text-[11px] text-ink-faint">Asset</span>
-                <div className="mt-1 font-mono text-[13px] font-medium text-ink">{incident.asset_id}</div>
+                <span className="text-[11px] text-ink-faint">Device</span>
+                <div className="mt-1 font-mono text-[13px] font-medium text-ink">{incident.deviceName ?? incident.deviceId ?? "unknown"}</div>
               </div>
               <div>
-                <span className="text-[11px] text-ink-faint">Zone</span>
-                <div className="mt-1 font-mono text-[13px] font-medium text-ink">{incident.zone_id ?? "unresolved"}</div>
+                <span className="text-[11px] text-ink-faint">IP / Zone</span>
+                <div className="mt-1 font-mono text-[13px] font-medium text-ink">
+                  {formatIp(incident.ipAddress)} · {incident.zoneId ?? "unresolved"}
+                </div>
               </div>
             </div>
 
@@ -124,22 +121,24 @@ export default function IncidentDetail() {
               ))}
             </div>
 
-            <div className="mt-5 border-t border-line-soft pt-4">
-              <span className="text-[11px] text-ink-faint">Recommended action</span>
-              <p className="mt-1 text-[13.5px] leading-snug text-ink">{incident.recommended_action}</p>
-            </div>
+            {incident.recommendedAction && (
+              <div className="mt-5 border-t border-line-soft pt-4">
+                <span className="text-[11px] text-ink-faint">Recommended action</span>
+                <p className="mt-1 text-[13.5px] leading-snug text-ink">{incident.recommendedAction}</p>
+              </div>
+            )}
 
             <div className="mt-5 flex gap-2 border-t border-line-soft pt-4">
               <button
-                disabled={incident.status !== "OPEN"}
-                onClick={() => mc.setIncidentStatus(incident.incident_id, "ACKNOWLEDGED")}
+                disabled={incident.status !== "open"}
+                onClick={() => mc.setIncidentStatus(incident.incidentId, "acknowledged")}
                 className="rounded-sm border border-line px-3 py-1.5 text-[12px] font-medium text-ink-muted transition-colors hover:border-amber/50 hover:text-amber disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Acknowledge
               </button>
               <button
-                disabled={incident.status === "RESOLVED"}
-                onClick={() => mc.setIncidentStatus(incident.incident_id, "RESOLVED")}
+                disabled={incident.status === "resolved"}
+                onClick={() => mc.setIncidentStatus(incident.incidentId, "resolved")}
                 className="rounded-sm border border-line px-3 py-1.5 text-[12px] font-medium text-ink-muted transition-colors hover:border-status-ok/50 hover:text-status-ok disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Resolve
@@ -153,7 +152,7 @@ export default function IncidentDetail() {
         </div>
 
         <div className="h-[420px] lg:h-auto">
-          <ReasoningPanel incident={incident} events={mc.events} onSelectEvent={setSelectedEvent} />
+          <CorrelationBasis incident={incident} lastEvaluation={undefined} events={mc.snapshot.events} onSelectEvent={setSelectedEvent} />
         </div>
       </main>
 

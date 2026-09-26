@@ -1,28 +1,24 @@
 import { useEffect, useRef } from "react";
-import type { SentrixEvent } from "../types";
+import type { Incident, NormalizedEvent } from "../domain";
 import { sourceColor, sourceLabel } from "../theme";
-import { formatClock, severityBand, severityBandColor } from "../format";
+import { formatClock, formatIp, humanizeEventType, severityBand, severityBandColor } from "../format";
 import { Panel } from "./Panel";
 
 interface Props {
-  events: SentrixEvent[];
-  onSelect: (event: SentrixEvent) => void;
+  events: NormalizedEvent[];
+  incidents: Incident[];
+  onSelect: (event: NormalizedEvent) => void;
   selectedId: string | null;
+  onHoverDevice: (deviceId: string | null) => void;
 }
 
-function humanize(eventType: string): string {
-  return eventType.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
-}
-
-export function EventStream({ events, onSelect, selectedId }: Props) {
+export function EventStream({ events, incidents, onSelect, selectedId, onHoverDevice }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
 
   useEffect(() => {
     const el = scrollRef.current;
-    if (el && stickToBottom.current) {
-      el.scrollTop = el.scrollHeight;
-    }
+    if (el && stickToBottom.current) el.scrollTop = el.scrollHeight;
   }, [events]);
 
   const handleScroll = () => {
@@ -30,6 +26,8 @@ export function EventStream({ events, onSelect, selectedId }: Props) {
     if (!el) return;
     stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
   };
+
+  const correlatedEventIds = new Set(incidents.flatMap((i) => i.signalIds));
 
   return (
     <Panel
@@ -50,13 +48,16 @@ export function EventStream({ events, onSelect, selectedId }: Props) {
       ) : (
         <div ref={scrollRef} onScroll={handleScroll} className="h-full divide-y divide-line-soft overflow-y-auto">
           {events.map((e) => {
-            const band = severityBand(e.severity);
-            const selected = e.event_id === selectedId;
+            const band = severityBand(e.severity ?? 0);
+            const selected = e.eventId === selectedId;
             const color = sourceColor[e.source];
+            const correlated = correlatedEventIds.has(e.eventId);
             return (
               <button
-                key={e.event_id}
+                key={e.eventId}
                 onClick={() => onSelect(e)}
+                onMouseEnter={() => onHoverDevice(e.deviceId ?? null)}
+                onMouseLeave={() => onHoverDevice(null)}
                 className={`animate-reveal flex w-full items-center gap-3 border-l-2 px-3 py-2.5 text-left transition-colors hover:bg-base-600/50 ${
                   selected ? "bg-base-600" : ""
                 }`}
@@ -69,15 +70,25 @@ export function EventStream({ events, onSelect, selectedId }: Props) {
                     {sourceLabel[e.source]}
                   </span>
                 </span>
-                <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink" title={humanize(e.event_type)}>
-                  {humanize(e.event_type)}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[12.5px] text-ink" title={humanizeEventType(e.eventType)}>
+                    {humanizeEventType(e.eventType)}
+                  </span>
+                  <span className="block truncate font-mono text-[10px] text-ink-faint">{e.eventType}</span>
                 </span>
-                <span className="hidden w-[70px] shrink-0 font-mono text-[11px] text-ink-muted sm:inline">{e.asset_id}</span>
-                <span className="hidden w-[24px] shrink-0 text-right font-mono text-[11px] font-semibold md:inline" style={{ color: severityBandColor[band] }}>
-                  {e.severity}
+                <span className="hidden w-[72px] shrink-0 font-mono text-[11px] text-ink-muted sm:inline">{e.deviceName ?? e.deviceId ?? "—"}</span>
+                <span className="hidden w-[110px] shrink-0 truncate font-mono text-[10.5px] text-ink-faint lg:inline">{formatIp(e.ipAddress)}</span>
+                <span
+                  className="hidden w-[24px] shrink-0 text-right font-mono text-[11px] font-semibold md:inline"
+                  style={{ color: e.severity !== undefined ? severityBandColor[band] : undefined }}
+                >
+                  {e.severity ?? "—"}
                 </span>
-                <span className="hidden w-[36px] shrink-0 text-right font-mono text-[10.5px] text-ink-faint md:inline">
-                  {Math.round(e.confidence * 100)}%
+                <span
+                  className="hidden w-[70px] shrink-0 text-right font-mono text-[9.5px] font-medium tracking-wide md:inline"
+                  style={{ color: correlated ? "#168B84" : "#8A9596" }}
+                >
+                  {correlated ? "CORRELATED" : "INDEPENDENT"}
                 </span>
               </button>
             );

@@ -1,4 +1,5 @@
-import type { Source } from "../types";
+import type { ReactNode } from "react";
+import type { Source } from "../domain";
 import { sourceColor, sourceLabel } from "../theme";
 
 export function StatusDot({ color, pulse = false }: { color: string; pulse?: boolean }) {
@@ -19,6 +20,29 @@ export function SourceTag({ source }: { source: Source }) {
     >
       <StatusDot color={color} />
       {sourceLabel[source]}
+    </span>
+  );
+}
+
+export function Badge({
+  color,
+  children,
+  bordered = true,
+}: {
+  color: string;
+  children: ReactNode;
+  bordered?: boolean;
+}) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wide"
+      style={{
+        color,
+        backgroundColor: `${color}14`,
+        border: bordered ? `1px solid ${color}55` : undefined,
+      }}
+    >
+      {children}
     </span>
   );
 }

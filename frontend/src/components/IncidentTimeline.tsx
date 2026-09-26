@@ -1,5 +1,5 @@
-import type { Incident, Source } from "../types";
-import { formatClock } from "../format";
+import type { Incident, NormalizedEvent, Source } from "../domain";
+import { formatClock, humanizeEventType } from "../format";
 import { sourceColor } from "../theme";
 import { Panel } from "./Panel";
 
@@ -10,16 +10,6 @@ interface Entry {
   label: string;
   source: Source | null;
   kind: Kind;
-}
-
-function sourceOf(label: string): Source | null {
-  const s = label.split(":")[0];
-  return s === "vision" || s === "endpoint" || s === "network" ? s : null;
-}
-
-function describe(label: string): string {
-  const idx = label.indexOf(":");
-  return idx === -1 ? label : label.slice(idx + 1).replace(/_/g, " ");
 }
 
 export function IncidentTimeline({ incident }: { incident: Incident | null }) {
@@ -34,14 +24,16 @@ export function IncidentTimeline({ incident }: { incident: Incident | null }) {
   }
 
   const entries: Entry[] = [
-    ...incident.timeline.map((t) => ({
-      timestamp: t.timestamp,
-      label: describe(t.label),
-      source: sourceOf(t.label),
-      kind: "signal" as const,
-    })),
-    { timestamp: incident.created_at, label: "Context window satisfied", source: null, kind: "fusion" as const },
-    { timestamp: incident.created_at, label: `${incident.incident_id} created`, source: null, kind: "incident" as const },
+    ...incident.timeline.map(
+      (e: NormalizedEvent): Entry => ({
+        timestamp: e.timestamp,
+        label: humanizeEventType(e.eventType),
+        source: e.source,
+        kind: "signal",
+      }),
+    ),
+    { timestamp: incident.createdAt, label: "Context window satisfied", source: null, kind: "fusion" as const },
+    { timestamp: incident.createdAt, label: `${incident.incidentId} created`, source: null, kind: "incident" as const },
   ].sort((a, b) => a.timestamp.localeCompare(b.timestamp) || (a.kind === "fusion" ? -1 : 1));
 
   return (
@@ -54,10 +46,7 @@ export function IncidentTimeline({ incident }: { incident: Incident | null }) {
             return (
               <li key={idx} className="animate-reveal mb-3 last:mb-0">
                 {e.kind === "signal" ? (
-                  <span
-                    className="absolute -left-[4.5px] mt-1 h-2 w-2 rounded-full ring-2 ring-base-700"
-                    style={{ backgroundColor: color }}
-                  />
+                  <span className="absolute -left-[4.5px] mt-1 h-2 w-2 rounded-full ring-2 ring-base-700" style={{ backgroundColor: color }} />
                 ) : (
                   <span
                     className="absolute -left-[5.5px] mt-[3px] h-2.5 w-2.5 rotate-45 ring-2 ring-base-700"
@@ -72,7 +61,10 @@ export function IncidentTimeline({ incident }: { incident: Incident | null }) {
                     </span>
                   )}
                 </div>
-                <p className={`text-[12.5px] leading-snug ${e.kind === "signal" ? "text-ink" : "font-medium"}`} style={e.kind !== "signal" ? { color } : undefined}>
+                <p
+                  className={`text-[12.5px] leading-snug ${e.kind === "signal" ? "text-ink" : "font-medium"}`}
+                  style={e.kind !== "signal" ? { color } : undefined}
+                >
                   {e.label}
                 </p>
               </li>

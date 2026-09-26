@@ -1,0 +1,399 @@
+import { api } from "../api";
+import type {
+  ConnState,
+  Incident as WireIncident,
+  SensorStatus,
+  SentrixEvent,
+  Source as WireSource,
+  WsMessage,
+} from "../types";
+import type {
+  Device,
+  FusionCriterion,
+  Incident,
+  MissionControlSnapshot,
+  NormalizedEvent,
+  RealtimeMessage,
+  RealtimeStatus,
+  SourceHealth,
+  SourceHealthStatus,
+} from "../domain";
+import { BackendActionUnavailableError, type MissionControlClient } from "./missionControlClient";
+
+/**
+ * THE integration point. Everything above this line (components, hooks,
+ * fixtures) speaks only the domain contract in src/domain/types.ts.
+ * Everything below translates that contract onto the SENTRIX backend
+ * described in docs/API_CONTRACT.md.
+ *
+ * When a richer/different backend contract lands (device registry, IP
+ * addresses, structured mismatch reasoning, scenario-by-category, ...),
+ * this is the only file that should need real rework -- swap the mapping
+ * functions and transport, keep the exported shape identical.
+ *
+ * Known gaps against the domain contract, given the CURRENT backend:
+ *  - No device registry or IP/network identity: devices are derived from
+ *    observed asset_id on events. ipAddress is always left undefined
+ *    (never fabricated) -- see MISSION_CONTROL_CONTRACT.md.
+ *  - No structured correlation criteria: incident.reasoning is freeform
+ *    text, heuristically labeled into FusionCriterion rows for display.
+ *    All rows are "match" because the backend only ever returns reasoning
+ *    for incidents it already created.
+ *  - No explicit "mismatch" outcome: when signals fail to correlate, the
+ *    backend simply never creates an incident. There is no payload to
+ *    build a structured CONTEXT MISMATCH view from live traffic today --
+ *    that state is demonstrated via fixtures until the backend exposes it.
+ */
+
+const WS_URL = import.meta.env.VITE_WS_URL ?? "ws://localhost:8000/ws";
+const RECONNECT_BASE_MS = 800;
+const RECONNECT_MAX_MS = 8000;
+const DEVICE_ONLINE_WINDOW_MS = 60_000;
+
+function toIncidentStatus(status: WireIncident["status"]): Incident["status"] {
+  switch (status) {
+    case "OPEN":
+      return "open";
+    case "ACKNOWLEDGED":
+      return "acknowledged";
+    case "RESOLVED":
+      return "resolved";
+    default:
+      return "unknown";
+  }
+}
+
+function fromIncidentStatus(status: Incident["status"]): WireIncident["status"] {
+  switch (status) {
+    case "open":
+      return "OPEN";
+    case "acknowledged":
+      return "ACKNOWLEDGED";
+    case "resolved":
+      return "RESOLVED";
+    default:
+      return "OPEN";
+  }
+}
+
+function toSourceHealthStatus(status: SensorStatus | undefined): SourceHealthStatus {
+  switch (status) {
+    case "ok":
+      return "online";
+    case "stale":
+      return "degraded";
+    case "never_seen":
+      return "offline";
+    default:
+      return "unknown";
+  }
+}
+
+function toRealtimeStatus(state: ConnState): RealtimeStatus {
+  switch (state) {
+    case "live":
+      return "connected";
+    case "connecting":
+      return "connecting";
+    case "reconnecting":
+      return "reconnecting";
+    case "disconnected":
+      return "disconnected";
+    default:
+      return "error";
+  }
+}
+
+function mapEvent(e: SentrixEvent): NormalizedEvent {
+  return {
+    eventId: e.event_id,
+    timestamp: e.timestamp,
+    source: e.source,
+    eventType: e.event_type,
+    deviceId: e.asset_id,
+    assetId: e.asset_id,
+    deviceName: e.asset_id,
+    // The current backend has no network-layer device identity. Never
+    // fabricate one -- UI must render "IP unavailable" for this.
+    ipAddress: undefined,
+    zoneId: e.zone_id ?? e.resolved_zone_id ?? undefined,
+    severity: e.severity,
+    confidence: e.confidence,
+    attributes: e.attributes,
+    evidence: e.evidence,
+  };
+}
+
+/** Heuristic label ONLY -- does not decide match/mismatch, just groups an
+ * already-decided, backend-authored reasoning string for display. Every row
+ * is "match" because the backend only emits reasoning for incidents it has
+ * already created. */
+function parseReasoningLine(line: string, idx: number): FusionCriterion {
+  let label = "Signal";
+  if (/zone/i.test(line)) label = "Zone";
+  else if (/asset|device/i.test(line)) label = "Device";
+  else if (/time|window|second/i.test(line)) label = "Time";
+  else if (/diversity|source/i.test(line)) label = "Source diversity";
+  else if (/confidence/i.test(line)) label = "Confidence";
+  else if (/severity/i.test(line)) label = "Severity";
+
+  return { key: `reason-${idx}`, label, status: "match", detail: line };
+}
+
+function sourceFromLabel(label: string): WireSource | null {
+  const s = label.split(":")[0];
+  return s === "vision" || s === "endpoint" || s === "network" ? s : null;
+}
+
+function mapTimelineEntry(
+  entry: WireIncident["timeline"][number],
+  wireEventsById: Map<string, SentrixEvent>,
+): NormalizedEvent {
+  const full = entry.event_id ? wireEventsById.get(entry.event_id) : undefined;
+  if (full) return mapEvent(full);
+
+  // No resolvable event record -- fall back to what the timeline label
+  // itself encodes ("source:event_type"), per API_CONTRACT.md.
+  const source = sourceFromLabel(entry.label);
+  const idx = entry.label.indexOf(":");
+  const eventType = idx === -1 ? entry.label : entry.label.slice(idx + 1);
+  return {
+    eventId: entry.event_id ?? `${entry.timestamp}-${entry.label}`,
+    timestamp: entry.timestamp,
+    source: source ?? "network",
+    eventType,
+  };
+}
+
+function mapIncident(inc: WireIncident, wireEventsById: Map<string, SentrixEvent>): Incident {
+  const signalEvidence = inc.signals
+    .map((id) => wireEventsById.get(id)?.evidence)
+    .filter((e): e is Record<string, unknown> => !!e && Object.keys(e).length > 0);
+
+  return {
+    incidentId: inc.incident_id,
+    createdAt: inc.created_at,
+    updatedAt: inc.updated_at,
+    status: toIncidentStatus(inc.status),
+    summary: inc.summary,
+    severity: inc.severity,
+    confidence: inc.confidence,
+    deviceId: inc.asset_id,
+    deviceName: inc.asset_id,
+    ipAddress: undefined,
+    zoneId: inc.zone_id ?? undefined,
+    signalIds: inc.signals,
+    timeline: inc.timeline.map((t) => mapTimelineEntry(t, wireEventsById)),
+    reasoning: inc.reasoning.map(parseReasoningLine),
+    evidence: signalEvidence.length > 0 ? signalEvidence : undefined,
+    recommendedAction: inc.recommended_action,
+  };
+}
+
+/** Devices are derived from real observed asset_id/zone_id on events --
+ * this is honest aggregation of backend truth, not invention. The backend
+ * has no dedicated device registry endpoint today. Exported so the
+ * realtime hook can recompute devices locally as events stream in,
+ * without an extra REST round trip per message. */
+export function deriveDevices(events: NormalizedEvent[], nowMs: number): Device[] {
+  const byId = new Map<string, Device & { _sources: Set<string> }>();
+  for (const e of events) {
+    if (!e.deviceId) continue;
+    const existing = byId.get(e.deviceId);
+    const isNewer = !existing || (existing.lastSeen ?? "") < e.timestamp;
+    if (!existing) {
+      byId.set(e.deviceId, {
+        deviceId: e.deviceId,
+        displayName: e.deviceName ?? e.deviceId,
+        ipAddress: e.ipAddress,
+        zoneId: e.zoneId,
+        status: "unknown",
+        firstSeen: e.timestamp,
+        lastSeen: e.timestamp,
+        _sources: new Set([e.source]),
+      });
+    } else {
+      existing._sources.add(e.source);
+      if (existing.firstSeen && e.timestamp < existing.firstSeen) existing.firstSeen = e.timestamp;
+      if (isNewer) {
+        existing.lastSeen = e.timestamp;
+        existing.zoneId = e.zoneId ?? existing.zoneId;
+        existing.ipAddress = e.ipAddress ?? existing.ipAddress;
+      }
+    }
+  }
+  return Array.from(byId.values()).map(({ _sources: _s, ...device }) => {
+    const ageMs = device.lastSeen ? nowMs - new Date(device.lastSeen).getTime() : Infinity;
+    return { ...device, status: ageMs < DEVICE_ONLINE_WINDOW_MS ? "online" : "offline" };
+  });
+}
+
+class SentrixMissionControlApi implements MissionControlClient {
+  private eventsCache = new Map<string, SentrixEvent>();
+
+  private async getWireEvents(limit = 300): Promise<SentrixEvent[]> {
+    const res = await api.events(limit);
+    const sorted = [...res.events].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    for (const e of sorted) this.eventsCache.set(e.event_id, e);
+    return sorted;
+  }
+
+  async getEvents(limit = 300): Promise<NormalizedEvent[]> {
+    const wire = await this.getWireEvents(limit);
+    return wire.map(mapEvent);
+  }
+
+  async getDevices(): Promise<Device[]> {
+    const events = await this.getEvents(300);
+    return deriveDevices(events, Date.now());
+  }
+
+  async getIncidents(): Promise<Incident[]> {
+    const [wireEvents, res] = await Promise.all([this.getWireEvents(300), api.incidents()]);
+    const byId = new Map(wireEvents.map((e) => [e.event_id, e]));
+    return res.incidents.map((inc) => mapIncident(inc, byId));
+  }
+
+  async getSourceHealth(): Promise<SourceHealth[]> {
+    const sources: WireSource[] = ["vision", "endpoint", "network"];
+    try {
+      const health = await api.health();
+      return sources.map((source) => {
+        const entry = health.sensors[source];
+        return {
+          source,
+          status: toSourceHealthStatus(entry?.status),
+          lastSeen: entry?.last_seen ?? undefined,
+        };
+      });
+    } catch {
+      // Health is genuinely unknown, not offline -- don't guess.
+      return sources.map((source) => ({ source, status: "unknown" as const }));
+    }
+  }
+
+  async getSnapshot(): Promise<MissionControlSnapshot> {
+    const [events, incidents, sourceHealth] = await Promise.all([
+      this.getEvents(300),
+      this.getIncidents(),
+      this.getSourceHealth(),
+    ]);
+    return {
+      devices: deriveDevices(events, Date.now()),
+      events,
+      incidents,
+      sourceHealth,
+      realtimeStatus: "connecting",
+    };
+  }
+
+  subscribe(
+    onMessage: (message: RealtimeMessage) => void,
+    onStatusChange: (status: RealtimeStatus) => void,
+  ): () => void {
+    let ws: WebSocket | null = null;
+    let reconnectAttempt = 0;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let closedByUs = false;
+
+    const emitStatus = (state: ConnState) => onStatusChange(toRealtimeStatus(state));
+
+    const connect = () => {
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      closedByUs = false;
+      emitStatus(reconnectAttempt > 0 ? "reconnecting" : "connecting");
+
+      ws = new WebSocket(WS_URL);
+
+      ws.onopen = () => {
+        reconnectAttempt = 0;
+        emitStatus("live");
+      };
+
+      ws.onmessage = (evt) => {
+        let msg: WsMessage;
+        try {
+          msg = JSON.parse(evt.data);
+        } catch {
+          return;
+        }
+        switch (msg.type) {
+          case "event.created": {
+            const wireEvent = msg.data as SentrixEvent;
+            this.eventsCache.set(wireEvent.event_id, wireEvent);
+            onMessage({ type: "event", data: mapEvent(wireEvent) });
+            break;
+          }
+          case "incident.created":
+          case "incident.updated": {
+            const wireIncident = msg.data as WireIncident;
+            onMessage({ type: "incident", data: mapIncident(wireIncident, this.eventsCache) });
+            break;
+          }
+          case "sensor.health": {
+            this.getSourceHealth().then((health) => onMessage({ type: "sourceHealth", data: health }));
+            break;
+          }
+          case "system.reset": {
+            this.eventsCache.clear();
+            onMessage({ type: "reset" });
+            break;
+          }
+        }
+      };
+
+      ws.onclose = () => {
+        if (closedByUs) return;
+        emitStatus("reconnecting");
+        const delay = Math.min(RECONNECT_BASE_MS * 2 ** reconnectAttempt, RECONNECT_MAX_MS);
+        reconnectAttempt += 1;
+        if (reconnectAttempt > 4) emitStatus("disconnected");
+        reconnectTimer = setTimeout(connect, delay);
+      };
+
+      ws.onerror = () => {
+        ws?.close();
+      };
+    };
+
+    connect();
+
+    return () => {
+      closedByUs = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      ws?.close();
+    };
+  }
+
+  async listScenarios(): Promise<string[]> {
+    const res = await api.scenarios();
+    return res.scenarios;
+  }
+
+  async runScenario(name: string): Promise<void> {
+    await api.replay(name, true, 1);
+  }
+
+  async runMismatchScenario(): Promise<void> {
+    const scenarios = await this.listScenarios();
+    const mismatchScenario = scenarios.find((s) => /mismatch/i.test(s));
+    if (!mismatchScenario) {
+      throw new BackendActionUnavailableError("run mismatch scenario");
+    }
+    await this.runScenario(mismatchScenario);
+  }
+
+  async resetScenario(): Promise<void> {
+    await api.reset();
+    this.eventsCache.clear();
+  }
+
+  async setIncidentStatus(incidentId: string, status: Incident["status"]): Promise<Incident> {
+    const updated = await api.setIncidentStatus(incidentId, fromIncidentStatus(status));
+    const wireEvents = await this.getWireEvents(300);
+    const byId = new Map(wireEvents.map((e) => [e.event_id, e]));
+    return mapIncident(updated, byId);
+  }
+}
+
+export const missionControlApi: MissionControlClient = new SentrixMissionControlApi();
