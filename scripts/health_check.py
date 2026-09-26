@@ -122,6 +122,23 @@ async def check_frontend(client: httpx.AsyncClient) -> None:
         print(f"{SKIP} Frontend not reachable at {FRONTEND_URL} (may not be running/built yet)")
 
 
+async def check_usb_sensor() -> None:
+    """Check if USB sensor daemon process is running."""
+    import os
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    pidfile = os.path.join(root, ".sentrix_pids", "usb_sensor.pid")
+    if os.path.exists(pidfile):
+        try:
+            with open(pidfile, "r") as fh:
+                pid = int(fh.read().strip())
+            os.kill(pid, 0)
+            print(f"{OK} USB sensor daemon (pid {pid})")
+        except (OSError, ValueError):
+            print(f"{DEGRADED} USB sensor daemon pid file exists but process not running")
+    else:
+        print(f"{SKIP} USB sensor daemon not started (no pid file)")
+
+
 def print_sensor_status(health_body: dict) -> None:
     sensors = health_body.get("sensors", {})
     for name in sorted(sensors):
@@ -146,6 +163,7 @@ async def main() -> int:
         ingestion_ok = await check_ingestion_and_fusion(client)
         realtime_ok = await check_realtime()
         await check_frontend(client)
+        await check_usb_sensor()
         print_sensor_status(health_body)
 
     required_ok = backend_ok and ingestion_ok and realtime_ok
