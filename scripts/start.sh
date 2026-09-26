@@ -135,4 +135,18 @@ else
   echo "[OK] mac endpoint agent up (log: .sentrix_agent.log)"
 fi
 
+# -- usb sensor daemon ----------------------------------------------------
+if pid_alive "$PIDFILE_DIR/usb_sensor.pid"; then
+  echo "[OK] usb sensor daemon already running"
+else
+  echo "[START] usb sensor daemon"
+  (
+    cd "$ROOT" && \
+    exec backend/.venv/bin/python -u sensors/usb_sensor_daemon.py \
+      > "$ROOT/.sentrix_usb_sensor.log" 2>&1
+  ) &
+  echo $! > "$PIDFILE_DIR/usb_sensor.pid"
+  echo "[OK] usb sensor daemon up (log: .sentrix_usb_sensor.log)"
+fi
+
 echo "SENTRIX START COMPLETE"

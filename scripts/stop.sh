@@ -5,7 +5,7 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PIDFILE_DIR="$ROOT/.sentrix_pids"
 
-for name in backend frontend; do
+for name in backend frontend agent usb_sensor; do
   pidfile="$PIDFILE_DIR/$name.pid"
   if [ -f "$pidfile" ]; then
     pid="$(cat "$pidfile")"
