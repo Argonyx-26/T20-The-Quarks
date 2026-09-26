@@ -1,16 +1,14 @@
 import { useEffect, useState } from "react";
-import type { PreviewKey } from "../fixtures/previewKeys";
 
 interface Props {
   scenarios: string[];
-  previewKey: PreviewKey | null;
   actionError: string | null;
   onRunScenario: (scenario: string) => Promise<void>;
   onRunMismatchScenario: () => Promise<void>;
   onResetScenario: () => Promise<void>;
 }
 
-export function OperatorConsole({ scenarios, previewKey, actionError, onRunScenario, onRunMismatchScenario, onResetScenario }: Props) {
+export function OperatorConsole({ scenarios, actionError, onRunScenario, onRunMismatchScenario, onResetScenario }: Props) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState(scenarios[0] ?? "");
   const [busy, setBusy] = useState<string | null>(null);
@@ -19,7 +17,7 @@ export function OperatorConsole({ scenarios, previewKey, actionError, onRunScena
     if (!selected && scenarios.length > 0) setSelected(scenarios[0]);
   }, [scenarios, selected]);
 
-  const disabledReason = previewKey ? "Backend action unavailable in preview mode" : scenarios.length === 0 ? "Backend action unavailable" : null;
+  const disabledReason = scenarios.length === 0 ? "Backend action unavailable" : null;
 
   if (!open) {
     return (

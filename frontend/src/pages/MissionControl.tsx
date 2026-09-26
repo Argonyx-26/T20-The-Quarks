@@ -11,7 +11,6 @@ import { IncidentTimeline } from "../components/IncidentTimeline";
 import { CorrelationBasis } from "../components/CorrelationBasis";
 import { EvidenceDrawer } from "../components/EvidenceDrawer";
 import { OperatorConsole } from "../components/OperatorConsole";
-import { DevPreviewSwitcher } from "../components/DevPreviewSwitcher";
 import { TransferDashboard } from "../components/TransferDashboard";
 import type { IncidentStatus, NormalizedEvent } from "../domain";
 
@@ -50,7 +49,6 @@ export default function MissionControl() {
           <span className="font-mono text-[13px] tracking-[0.14em] text-ink-faint">SENTRIX</span>
           <span className="text-[11px] text-ink-faint">Establishing realtime session…</span>
         </div>
-        <DevPreviewSwitcher current={mc.previewKey} />
       </div>
     );
   }
@@ -62,19 +60,16 @@ export default function MissionControl() {
           <span className="h-2 w-2 rounded-full bg-status-critical" />
           <p className="text-[15px] font-semibold tracking-wide text-ink">BACKEND UNAVAILABLE</p>
           <p className="text-[12.5px] text-ink-faint">Mission Control could not reach the SENTRIX backend{mc.error ? ` (${mc.error})` : ""}.</p>
-          {!mc.previewKey && (
-            <button
-              onClick={() => mc.reload()}
-              className="mt-1 rounded-sm border border-line px-3 py-1.5 text-[12px] font-medium text-ink-muted hover:border-ink-faint hover:text-ink"
-            >
-              Retry
-            </button>
-          )}
+          <button
+            onClick={() => mc.reload()}
+            className="mt-1 rounded-sm border border-line px-3 py-1.5 text-[12px] font-medium text-ink-muted hover:border-ink-faint hover:text-ink"
+          >
+            Retry
+          </button>
           <Link to="/" className="mt-2 text-[11.5px] text-ink-faint hover:text-ink">
             ← Back to overview
           </Link>
         </div>
-        <DevPreviewSwitcher current={mc.previewKey} />
       </div>
     );
   }
@@ -83,7 +78,7 @@ export default function MissionControl() {
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-base-800 text-ink">
-      <TopCommandRail snapshot={snapshot} previewKey={mc.previewKey} />
+      <TopCommandRail snapshot={snapshot} />
       <ConnectionBanner realtimeStatus={snapshot.realtimeStatus} />
       <DegradedSourcesBanner sourceHealth={snapshot.sourceHealth} />
 
@@ -135,13 +130,11 @@ export default function MissionControl() {
 
       <OperatorConsole
         scenarios={mc.scenarios}
-        previewKey={mc.previewKey}
         actionError={mc.actionError}
         onRunScenario={mc.runScenario}
         onRunMismatchScenario={mc.runMismatchScenario}
         onResetScenario={mc.resetScenario}
       />
-      <DevPreviewSwitcher current={mc.previewKey} />
 
       {selectedEvent && <EvidenceDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} />}
     </div>

@@ -1,20 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Incident, IncidentStatus, MissionControlSnapshot, NormalizedEvent, RealtimeStatus } from "../domain";
 import { deriveDevices, missionControlApi } from "../services/missionControlApi";
 import { BackendActionUnavailableError } from "../services/missionControlClient";
-import { PREVIEW_KEYS, type PreviewKey } from "../fixtures/previewKeys";
 
 const MAX_EVENTS_KEPT = 300;
-
-/** Dev-only: `?preview=<key>` selects a fixture state instead of talking to
- * the real backend. Reading `import.meta.env.DEV` here means Vite's
- * production build statically eliminates this branch -- it cannot ship. */
-function readPreviewKey(): PreviewKey | null {
-  if (!import.meta.env.DEV) return null;
-  if (typeof window === "undefined") return null;
-  const raw = new URLSearchParams(window.location.search).get("preview");
-  return raw && (PREVIEW_KEYS as readonly string[]).includes(raw) ? (raw as PreviewKey) : null;
-}
 
 function upsertBy<T>(list: T[], incoming: T, keyOf: (item: T) => string): T[] {
   const key = keyOf(incoming);
@@ -33,7 +22,6 @@ export interface MissionControlData {
   error: string | null;
   justUpdatedIncidentId: string | null;
   scenarios: string[];
-  previewKey: PreviewKey | null;
   actionError: string | null;
   reload: () => Promise<void>;
   runScenario: (name: string) => Promise<void>;
@@ -43,8 +31,6 @@ export interface MissionControlData {
 }
 
 export function useMissionControlData(): MissionControlData {
-  const previewKey = useMemo(readPreviewKey, []);
-
   const [status, setStatus] = useState<LifecycleStatus>("booting");
   const [snapshot, setSnapshot] = useState<MissionControlSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -113,47 +99,16 @@ export function useMissionControlData(): MissionControlData {
   }, [flashIncident]);
 
   useEffect(() => {
-    if (previewKey) {
-      if (previewKey === "booting") {
-        setStatus("booting");
-        return;
-      }
-      if (previewKey === "error") {
-        setStatus("error");
-        setError("Simulated backend failure (dev preview)");
-        return;
-      }
-      // Dynamic import gated on the SAME literal `import.meta.env.DEV` check
-      // used elsewhere: Vite/esbuild fold this whole block away in a
-      // production build, so the fixture payload (device names, sample
-      // events, incidents) is excluded from the bundle entirely -- not
-      // just unreached at runtime, but physically absent.
-      if (import.meta.env.DEV) {
-        import("../fixtures/missionControl").then((mod) => {
-          setSnapshot(mod.missionControlFixtures[previewKey]);
-          setStatus("ready");
-          setScenarios([]);
-        });
-      }
-      return;
-    }
-
     loadLive();
     return () => unsubscribeRef.current?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewKey]);
+  }, [loadLive]);
 
   const reload = useCallback(async () => {
-    if (previewKey) return;
     await loadLive();
-  }, [loadLive, previewKey]);
+  }, [loadLive]);
 
   const guardLiveAction = useCallback(
     async (action: () => Promise<void>) => {
-      if (previewKey) {
-        setActionError("Backend action unavailable in preview mode");
-        return;
-      }
       try {
         setActionError(null);
         await action();
@@ -165,7 +120,7 @@ export function useMissionControlData(): MissionControlData {
         }
       }
     },
-    [previewKey],
+    [],
   );
 
   const runScenario = useCallback((name: string) => guardLiveAction(() => missionControlApi.runScenario(name)), [guardLiveAction]);
@@ -194,7 +149,6 @@ export function useMissionControlData(): MissionControlData {
     error,
     justUpdatedIncidentId,
     scenarios,
-    previewKey,
     actionError,
     reload,
     runScenario,

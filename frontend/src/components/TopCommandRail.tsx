@@ -4,11 +4,9 @@ import type { MissionControlSnapshot, RealtimeStatus, Source } from "../domain";
 import { sourceHealthColor } from "../theme";
 import { formatClock } from "../format";
 import { StatusDot } from "./atoms";
-import type { PreviewKey } from "../fixtures/previewKeys";
 
 interface Props {
   snapshot: MissionControlSnapshot;
-  previewKey: PreviewKey | null;
 }
 
 const SOURCES: Source[] = ["vision", "endpoint", "network"];
@@ -39,7 +37,7 @@ function Metric({ value, label, color }: { value: string; label: string; color?:
   );
 }
 
-export function TopCommandRail({ snapshot, previewKey }: Props) {
+export function TopCommandRail({ snapshot }: Props) {
   const [now, setNow] = useState(() => new Date().toISOString());
   useEffect(() => {
     const id = setInterval(() => setNow(new Date().toISOString()), 1000);
@@ -61,14 +59,9 @@ export function TopCommandRail({ snapshot, previewKey }: Props) {
         </div>
         <span
           className="rounded-sm border px-1.5 py-0.5 font-mono text-[9.5px] font-semibold tracking-widest"
-          style={
-            previewKey
-              ? { borderColor: "#4779D855", color: "#4779D8", backgroundColor: "#4779D814" }
-              : { borderColor: "#3D927055", color: "#3D9270", backgroundColor: "#3D927014" }
-          }
-          title={previewKey ? "Rendering a deterministic dev fixture, not live backend data" : undefined}
+          style={{ borderColor: "#3D927055", color: "#3D9270", backgroundColor: "#3D927014" }}
         >
-          {previewKey ? `PREVIEW · ${previewKey.toUpperCase()}` : "LIVE"}
+          LIVE
         </span>
       </div>
 
