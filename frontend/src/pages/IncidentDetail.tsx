@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { useMissionControlData } from "../hooks/useMissionControlData";
+import { useMissionControlContext } from "../MissionControlContext";
 import { IncidentTimeline } from "../components/IncidentTimeline";
 import { CorrelationBasis } from "../components/CorrelationBasis";
 import { EvidenceDrawer } from "../components/EvidenceDrawer";
@@ -15,7 +15,7 @@ function sourcesInIncident(timeline: { source: Source }[]): Source[] {
 
 export default function IncidentDetail() {
   const { incidentId } = useParams<{ incidentId: string }>();
-  const mc = useMissionControlData();
+  const mc = useMissionControlContext();
   const [selectedEvent, setSelectedEvent] = useState<NormalizedEvent | null>(null);
 
   if (mc.status === "booting") {

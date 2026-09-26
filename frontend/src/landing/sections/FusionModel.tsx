@@ -1,447 +1,400 @@
 import { useState } from "react";
 import { Reveal } from "../shared/Reveal";
 import { Section } from "../shared/ui";
-import { ContextEngineScene } from "./ContextEngineScene";
+import { ContextCore } from "../shared/ContextCore";
 
-const STEPS = [
-  {
-    n: "01",
-    key: "TIME",
-    question: "Did these signals happen within the same window?",
-    copy: "Events occurring close together may be related, but time alone is not enough.",
-    resultLabel: "Δ 8.2s",
-    resultNote: "within the 30s correlation window",
-  },
-  {
-    n: "02",
-    key: "DEVICE",
-    question: "Do the digital events belong to the same device?",
-    copy: "Digital events become stronger evidence when they reference the same monitored asset.",
-    resultLabel: "Phone B",
-    resultNote: "same device context",
-  },
-  {
-    n: "03",
-    key: "NETWORK",
-    question: "Does the traffic belong to the same network context?",
-    copy: "SENTRIX checks whether the network activity belongs to the same device and network context.",
-    resultLabel: "192.168.1.37",
-    resultNote: "source device = network event",
-  },
-  {
-    n: "04",
-    key: "SOURCES",
-    question: "Are independent systems supporting the same story?",
-    copy: "Independent sources provide stronger contextual evidence than repeated alerts from one source.",
-    resultLabel: "3 sources",
-    resultNote: "vision, endpoint, network — sufficient diversity",
-  },
-  {
-    n: "05",
-    key: "CONFIDENCE",
-    question: "Is the combined context strong enough to act on?",
-    copy: "Only after enough contextual conditions agree can the system create an incident.",
-    resultLabel: "92%",
-    resultNote: "clears the 75% threshold",
-  },
-] as const;
+type StepId = "time" | "device" | "network" | "sources" | "confidence";
 
-// 01 — temporal calibration arc, not a flat timeline
-function TimeVisual() {
-  const pts = [
-    { x: 44, y: 60, t: "21:42:05", who: "Vision" },
-    { x: 100, y: 45, t: "21:42:09", who: "Endpoint" },
-    { x: 156, y: 60, t: "21:42:13", who: "Network" },
-  ];
-  return (
-    <div className="relative mt-6 h-32">
-      <svg viewBox="0 0 200 90" className="h-full w-full">
-        <path d="M 20 75 Q 100 15 180 75" fill="none" stroke="rgba(18,55,54,0.14)" strokeWidth="1" />
-        {Array.from({ length: 9 }).map((_, i) => {
-          const t = i / 8;
-          const x = (1 - t) * (1 - t) * 20 + 2 * (1 - t) * t * 100 + t * t * 180;
-          const y = (1 - t) * (1 - t) * 75 + 2 * (1 - t) * t * 15 + t * t * 75;
-          return <line key={i} x1={x} y1={y - 3} x2={x} y2={y + 3} stroke="rgba(18,55,54,0.2)" strokeWidth="1" />;
-        })}
-        {pts.map((p) => (
-          <circle key={p.t} cx={p.x} cy={p.y} r="3.5" fill="#0F7A75" />
-        ))}
-      </svg>
-      <div className="mt-1 flex justify-between px-1">
-        {pts.map((p) => (
-          <div key={p.t} className="text-center">
-            <span className="block font-mono text-[9px] text-ink-faint">{p.t}</span>
-            <span className="block text-[10px] font-medium text-ink-muted">{p.who}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// 02 — two identity layers registering across the full frame, not arrows
-function DeviceVisual() {
-  return (
-    <div className="relative mt-6 flex h-48 items-center justify-center overflow-hidden">
-      {/* registration rail -- spans the frame so the plates read as an instrument, not two floating cards */}
-      <div className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-line-soft" />
-      {[0.08, 0.5, 0.92].map((f) => (
-        <span
-          key={f}
-          className="absolute top-1/2 h-2.5 w-px -translate-y-1/2 bg-line-strong/50"
-          style={{ left: `${f * 100}%` }}
-        />
-      ))}
-
-      <div
-        className="absolute h-[124px] w-[62%] max-w-[280px] rounded-[8px] border border-line-strong/70 bg-base-500/70"
-        style={{ transform: "translate(-13%,-9px)" }}
-      >
-        <span className="absolute left-3.5 top-3 font-mono text-[10px] tracking-[0.06em] text-ink-faint">ENDPOINT EVENT</span>
-        <span className="absolute bottom-3 left-3.5 text-[18px] font-semibold text-ink">Phone B</span>
-        <span className="absolute bottom-3 right-3.5 font-mono text-[10px] text-ink-faint">PHONE-B</span>
-      </div>
-      <div
-        className="absolute h-[124px] w-[62%] max-w-[280px] rounded-[8px] border border-teal/60 bg-teal/5"
-        style={{ transform: "translate(13%,9px)" }}
-      >
-        <span className="absolute right-3.5 top-3 font-mono text-[10px] tracking-[0.06em] text-teal-dark">NETWORK EVENT</span>
-        <span className="absolute bottom-3 right-3.5 text-[18px] font-semibold text-ink">Phone B</span>
-        <span className="absolute bottom-3 left-3.5 font-mono text-[10px] text-ink-faint">192.168.1.37</span>
-      </div>
-
-      <svg width="30" height="30" className="relative z-10">
-        <line x1="15" y1="1" x2="15" y2="29" stroke="#08645F" strokeWidth="1.3" />
-        <line x1="1" y1="15" x2="29" y2="15" stroke="#08645F" strokeWidth="1.3" />
-        <circle cx="15" cy="15" r="4" fill="none" stroke="#08645F" strokeWidth="1.3" />
-      </svg>
-    </div>
-  );
-}
-
-// 03 — orbit / topology field, spline paths, no arrowheads
-function NetworkVisual() {
-  return (
-    <div className="relative mt-6 h-32">
-      <svg viewBox="0 0 220 110" className="h-full w-full">
-        <path id="net-a" d="M 34 85 Q 90 85 112 50" fill="none" stroke="#0F7A75" strokeWidth="1.5" strokeOpacity="0.5" />
-        <path id="net-b" d="M 112 50 Q 150 28 186 22" fill="none" stroke="#B98335" strokeWidth="1.5" strokeOpacity="0.6" strokeDasharray="1 4" strokeLinecap="round" />
-        <circle r="2.2" fill="#0F7A75">
-          <animateMotion dur="2.2s" repeatCount="indefinite">
-            <mpath href="#net-a" />
-          </animateMotion>
-        </circle>
-        <circle r="2.2" fill="#B98335">
-          <animateMotion dur="1.8s" repeatCount="indefinite">
-            <mpath href="#net-b" />
-          </animateMotion>
-        </circle>
-        <circle cx="34" cy="85" r="4" fill="#FFFFFF" stroke="#0F7A75" strokeWidth="1.5" />
-        <circle cx="112" cy="50" r="4" fill="#FFFFFF" stroke="#0F7A75" strokeWidth="1.5" />
-        <circle cx="186" cy="22" r="4" fill="#FFFFFF" stroke="#B98335" strokeWidth="1.5" />
-      </svg>
-      <span className="absolute bottom-0 left-0 font-mono text-[9.5px] text-ink-muted">Phone B · 192.168.1.37</span>
-      <span className="absolute left-[46%] top-[38%] font-mono text-[9px] text-teal-dark">LOCAL NETWORK</span>
-      <span className="absolute right-0 top-0 font-mono text-[9.5px] text-amber">203.0.113.44</span>
-    </div>
-  );
-}
-
-// 04 — three physical channels registering around a shared center
-function SourceVisual() {
-  const ch = [
-    { l: "VISION", c: "#4779BD", e: "Restricted-zone presence observed", d: "M4 18 Q 60 4 120 20" },
-    { l: "ENDPOINT", c: "#785EAB", e: "USB attachment observed", d: "M4 40 Q 60 40 120 40" },
-    { l: "NETWORK", c: "#138983", e: "Outbound deviation observed", d: "M4 62 Q 60 76 120 60" },
-  ];
-  return (
-    <div className="mt-6">
-      <svg viewBox="0 0 124 80" className="h-16 w-full">
-        {ch.map((x) => (
-          <path key={x.l} d={x.d} fill="none" stroke={x.c} strokeWidth="1.6" strokeOpacity="0.7" strokeLinecap="round" />
-        ))}
-        <circle cx="120" cy="40" r="3" fill="none" stroke="rgba(18,55,54,0.3)" strokeWidth="1" />
-      </svg>
-      <div className="mt-3 flex flex-col gap-2">
-        {ch.map((x) => (
-          <div key={x.l} className="flex items-baseline gap-2">
-            <span className="w-[70px] shrink-0 font-mono text-[9.5px] tracking-[0.05em]" style={{ color: x.c }}>
-              {x.l}
-            </span>
-            <span className="text-[11px] text-ink-muted">{x.e}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// 05 — calibrated threshold instrument: a filled measurement rail, not a
-// thin line. This is the payoff step, so it carries more visual weight than
-// 01-04, not the same thin-line treatment.
-function ConfidenceVisual() {
-  const ticks = [0, 25, 50, 75, 100];
-  const railX = 10;
-  const railW = 280;
-  const at = (t: number) => railX + (t / 100) * railW;
-
-  return (
-    <div className="mt-6">
-      <svg viewBox="0 0 300 70" className="w-full">
-        {/* base rail */}
-        <rect x={railX} y="28" width={railW} height="10" rx="5" fill="rgba(18,55,54,0.07)" />
-        {/* filled portion up to observed value */}
-        <rect x={railX} y="28" width={at(92) - railX} height="10" rx="5" fill="#0F7A75" />
-        {/* tick marks + labels */}
-        {ticks.map((t) => (
-          <g key={t}>
-            <line x1={at(t)} y1="20" x2={at(t)} y2="44" stroke="rgba(18,55,54,0.3)" strokeWidth="1" />
-            <text x={at(t)} y="58" fontSize="9" textAnchor="middle" fill="#8A9596" fontFamily="monospace">
-              {t}
-            </text>
-          </g>
-        ))}
-        {/* threshold marker */}
-        <line x1={at(75)} y1="14" x2={at(75)} y2="50" stroke="#B98335" strokeWidth="1.6" strokeDasharray="3 3" />
-        <text x={at(75)} y="10" fontSize="9" fontWeight="700" textAnchor="middle" fill="#B98335" fontFamily="monospace">
-          75
-        </text>
-        {/* observed aperture marker */}
-        <circle cx={at(92)} cy="33" r="8" fill="#FFFFFF" stroke="#0F7A75" strokeWidth="2.5" />
-        <circle cx={at(92)} cy="33" r="3" fill="#0F7A75" />
-      </svg>
-      <div className="mt-3 flex items-end justify-between border-t border-line-soft pt-3">
-        <div>
-          <span className="font-mono text-[10px] font-semibold tracking-[0.06em] text-amber">THRESHOLD</span>
-          <p className="font-mono text-[22px] font-bold leading-none text-ink-muted">75%</p>
-        </div>
-        <div className="text-right">
-          <span className="font-mono text-[10px] font-semibold tracking-[0.06em] text-teal-dark">OBSERVED</span>
-          <p className="font-mono text-[32px] font-bold leading-none text-teal-dark">92%</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const VISUALS = [TimeVisual, DeviceVisual, NetworkVisual, SourceVisual, ConfidenceVisual];
-
-const MATCH_ROWS = [
-  { c: "TIME", v: "8.2s", ok: true },
-  { c: "DEVICE", v: "Phone B = Phone B", ok: true },
-  { c: "NETWORK", v: "192.168.1.37 = 192.168.1.37", ok: true },
-  { c: "SOURCES", v: "3 / 3", ok: true },
-];
-const MISMATCH_ROWS = [
-  { c: "TIME", v: "8.2s", ok: true },
-  { c: "DEVICE", v: "192.168.1.21 ≠ 192.168.1.37", ok: false },
-  { c: "NETWORK", v: "192.168.1.21 ≠ 192.168.1.37", ok: false },
-  { c: "SOURCES", v: "2 / 3", ok: false },
+const STEPS: { id: StepId; num: string; label: string }[] = [
+  { id: "time", num: "01", label: "TIME" },
+  { id: "device", num: "02", label: "DEVICE" },
+  { id: "network", num: "03", label: "NETWORK" },
+  { id: "sources", num: "04", label: "SOURCES" },
+  { id: "confidence", num: "05", label: "CONFIDENCE" },
 ];
 
-/** Calibration index -- replaces a generic arrow/number stepper. Each row is
- * a measurement mark, not a step-with-arrow; the left border is the "tick"
- * that lights up as a criterion is reached, and stays lit when revisited. */
-function CalibrationIndex({
-  activeStep,
-  highestStep,
-  onSelect,
-}: {
-  activeStep: number;
-  highestStep: number;
-  onSelect: (n: number) => void;
-}) {
+const SIGNALS = [
+  { id: "vision", label: "VISION", title: "Restricted-zone presence detected", meta: "person_in_restricted_zone", color: "#4779BD", y: 150 },
+  { id: "endpoint", label: "ENDPOINT", title: "USB device attached", meta: "usb_device_attached", color: "#785EAB", y: 300 },
+  { id: "network", label: "NETWORK", title: "Unusual outbound activity", meta: "outbound_deviation", color: "#138983", y: 450 },
+];
+
+function SignalNode({ signal, activeStep }: { signal: typeof SIGNALS[0], activeStep: StepId }) {
+  const isSelected = activeStep === 'sources' || activeStep === 'confidence';
+  const isActive = isSelected || 
+    (activeStep === 'time') ||
+    (activeStep === 'device' && (signal.id === 'endpoint' || signal.id === 'network')) ||
+    (activeStep === 'network' && signal.id === 'network');
+    
   return (
-    <div className="flex flex-col" role="tablist" aria-label="Contextual checks">
-      {STEPS.map((s, i) => {
-        const n = i + 1;
-        const reached = highestStep >= n;
-        const active = activeStep === n;
-        return (
-          <button
-            key={s.key}
-            role="tab"
-            aria-selected={active}
-            onClick={() => onSelect(n)}
-            className="group flex items-center gap-3 border-l-2 py-3 pl-4 pr-2 text-left transition-colors"
-            style={{ borderColor: active ? "#0F7A75" : reached ? "rgba(15,122,117,0.35)" : "rgba(18,55,54,0.12)" }}
-          >
-            <span className="w-5 shrink-0 font-mono text-[10.5px]" style={{ color: active ? "#08645F" : reached ? "#0F7A75" : "#8A9596" }}>
-              {s.n}
-            </span>
-            <span
-              className="font-mono text-[11.5px] font-bold tracking-[0.04em]"
-              style={{ color: active ? "#121718" : reached ? "#465253" : "#8A9596" }}
-            >
-              {s.key}
-            </span>
-            <span className="ml-auto h-1 w-1 shrink-0 rounded-full" style={{ backgroundColor: reached ? "#0F7A75" : "rgba(18,55,54,0.15)" }} />
-          </button>
-        );
+    <div className={`relative flex flex-col transition-opacity duration-500 ${isActive ? 'opacity-100' : 'opacity-30'}`}>
+       <div className="flex items-center gap-2 mb-2">
+         <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: signal.color }} />
+         <span className="font-mono text-[10px] font-bold tracking-[0.06em] uppercase" style={{ color: signal.color }}>
+            {signal.label}
+         </span>
+       </div>
+       <h4 className="text-[16px] font-semibold text-ink leading-snug">{signal.title}</h4>
+       <span className="mt-1 font-mono text-[11px] text-ink-faint">{signal.meta}</span>
+       <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-line-strong hidden lg:block" />
+    </div>
+  )
+}
+
+function StepContent({ activeStep }: { activeStep: StepId }) {
+  return (
+    <div key={activeStep} className="relative w-full" style={{ animation: 'approachFadeSlide 350ms cubic-bezier(0.16, 1, 0.3, 1) forwards' }}>
+      <style>{`
+        @keyframes approachFadeSlide {
+          from { opacity: 0; transform: translateX(12px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+      `}</style>
+      
+       {activeStep === "time" && (
+         <div className="p-6 border border-line bg-base-900/50 shadow-sm">
+           <span className="font-mono text-[10px] tracking-[0.1em] text-ink-faint">TEMPORAL CORRELATION</span>
+           <div className="mt-5 flex flex-col gap-2 font-mono text-[12px]">
+             <div className="flex justify-between items-center text-ink-muted">
+               <span>EVENT WINDOW</span>
+               <span className="text-teal-dark font-bold">21:42:05 &rarr; 21:42:08</span>
+             </div>
+             <div className="h-px bg-line-soft my-2" />
+             <div className="flex justify-between items-center">
+               <span className="text-ink-faint">Correlation window</span>
+               <span className="text-ink font-semibold">3.0s</span>
+             </div>
+           </div>
+           <p className="mt-5 text-[12px] text-ink-muted leading-relaxed">
+             The system detects multiple signals occurring within a meaningful temporal window. Events occurring close together may be related, but time alone is not enough.
+           </p>
+         </div>
+       )}
+       {activeStep === "device" && (
+         <div className="p-6 border border-line bg-base-900/50 shadow-sm">
+           <span className="font-mono text-[10px] tracking-[0.1em] text-ink-faint">DEVICE RELATIONSHIP</span>
+           <div className="mt-5 flex justify-between items-center">
+             <div className="flex flex-col">
+                <span className="font-mono text-[12px] font-bold text-ink">PHONE A</span>
+                <span className="font-mono text-[10px] text-ink-faint">192.168.1.21</span>
+             </div>
+             <div className="h-px w-8 bg-line-strong border-dashed" />
+             <div className="flex flex-col text-right">
+                <span className="font-mono text-[12px] font-bold text-ink">PHONE B</span>
+                <span className="font-mono text-[10px] text-ink-faint">192.168.1.37</span>
+             </div>
+           </div>
+           <p className="mt-5 text-[12px] text-ink-muted leading-relaxed">
+             Digital events become stronger evidence when they reference the same monitored asset. Both the endpoint attachment and network request map to the same physical device context.
+           </p>
+         </div>
+       )}
+       {activeStep === "network" && (
+         <div className="p-6 border border-line bg-base-900/50 shadow-sm">
+           <span className="font-mono text-[10px] tracking-[0.1em] text-ink-faint">NETWORK BEHAVIOR</span>
+           <div className="mt-5 grid grid-cols-2 gap-4">
+             <div>
+               <span className="block font-mono text-[9px] text-ink-faint mb-1">EXPECTED</span>
+               <span className="block text-[12px] font-medium text-ink">Normal local traffic</span>
+             </div>
+             <div>
+               <span className="block font-mono text-[9px] text-amber mb-1">OBSERVED</span>
+               <span className="block text-[12px] font-medium text-ink">Unexpected outbound</span>
+               <span className="block font-mono text-[10px] text-ink-faint mt-1">203.0.113.44</span>
+             </div>
+           </div>
+           <p className="mt-5 text-[12px] text-ink-muted leading-relaxed">
+             Traffic destined for an external IP address diverges from established baseline behaviors for this device class and network context.
+           </p>
+         </div>
+       )}
+       {activeStep === "sources" && (
+         <div className="p-6 border border-line bg-base-900/50 shadow-sm">
+           <span className="font-mono text-[10px] tracking-[0.1em] text-ink-faint">EVIDENCE DOMAINS</span>
+           <div className="mt-5 flex flex-col gap-3">
+             <div className="flex justify-between items-center">
+               <span className="font-mono text-[10px]" style={{ color: "#4779BD" }}>VISION</span>
+               <span className="text-[11px] text-ink-muted">Physical-space signal</span>
+             </div>
+             <div className="flex justify-between items-center">
+               <span className="font-mono text-[10px]" style={{ color: "#785EAB" }}>ENDPOINT</span>
+               <span className="text-[11px] text-ink-muted">Device activity</span>
+             </div>
+             <div className="flex justify-between items-center">
+               <span className="font-mono text-[10px]" style={{ color: "#138983" }}>NETWORK</span>
+               <span className="text-[11px] text-ink-muted">Network behavior</span>
+             </div>
+           </div>
+           <p className="mt-5 text-[12px] text-ink-muted leading-relaxed">
+             Independent systems supporting the same story. Three distinct sensor types independently corroborate the same unfolding event sequence.
+           </p>
+         </div>
+       )}
+       {activeStep === "confidence" && (
+         <div className="p-6 border border-line bg-base-900/50 shadow-sm">
+           <span className="font-mono text-[10px] tracking-[0.1em] text-ink-faint">DECISION THRESHOLD</span>
+           <div className="mt-5 flex items-end justify-between">
+             <div>
+               <span className="block font-display text-[32px] font-bold text-teal-dark leading-none">92%</span>
+               <span className="block font-mono text-[9px] text-ink-muted mt-1">OBSERVED CONFIDENCE</span>
+             </div>
+             <div className="text-right">
+               <span className="block font-display text-[20px] font-medium text-ink-muted leading-none">75%</span>
+               <span className="block font-mono text-[9px] text-amber mt-1">ACTION THRESHOLD</span>
+             </div>
+           </div>
+           
+           <div className="relative h-1.5 w-full bg-line-soft mt-5 rounded-full overflow-hidden">
+             <div className="absolute top-0 left-0 h-full bg-teal-dark rounded-full transition-all duration-1000 ease-out" style={{ width: '92%' }} />
+             <div className="absolute top-0 bottom-0 w-px bg-amber z-10" style={{ left: '75%' }} />
+           </div>
+
+           <p className="mt-5 text-[12px] text-ink-muted leading-relaxed">
+             Only after enough contextual conditions agree can the system create an incident. With 3 corroborating signals, the context exceeds the strict operational threshold.
+           </p>
+         </div>
+       )}
+    </div>
+  )
+}
+
+function ResolutionPanel({ activeStep }: { activeStep: StepId }) {
+  return (
+    <div className="flex flex-col h-full justify-center gap-12 w-full max-w-sm">
+      <div className={`border-l-2 pl-5 transition-colors duration-500 ${activeStep === 'confidence' ? 'border-status-critical' : 'border-line-strong'}`}>
+         <p className={`font-mono text-[10px] font-bold tracking-[0.1em] transition-colors duration-500 ${activeStep === 'confidence' ? 'text-status-critical' : 'text-ink-faint'}`}>CONTEXT RESOLVED</p>
+         <p className="mt-2 font-mono text-[22px] font-bold text-ink transition-opacity duration-500">INC-0001</p>
+         <p className="mt-1 text-[13px] text-ink-muted">Suspicious multi-signal activity</p>
+         <div className={`mt-3 flex gap-4 font-mono text-[10px] font-medium transition-colors duration-500 ${activeStep === 'confidence' ? 'text-teal-dark' : 'text-ink-faint'}`}>
+            <span>92% confidence</span>
+            <span>3 signals</span>
+         </div>
+      </div>
+      <div className="relative min-h-[160px]">
+         <StepContent activeStep={activeStep} />
+      </div>
+    </div>
+  )
+}
+
+function StepRail({ activeStep, onChange }: { activeStep: StepId, onChange: (id: StepId) => void }) {
+  return (
+    <div className="flex flex-col gap-8 border-l border-line-soft pl-6 py-12">
+      {STEPS.map(s => {
+         const isActive = activeStep === s.id;
+         return (
+           <button 
+             key={s.id} 
+             onClick={() => onChange(s.id)}
+             className={`flex flex-col gap-1 text-left transition-all duration-300 group ${isActive ? 'opacity-100' : 'opacity-40 hover:opacity-70'}`}
+           >
+             <div className="flex items-center gap-3">
+                <span className={`w-1.5 h-1.5 rounded-full transition-colors ${isActive ? 'bg-teal-dark' : 'bg-transparent border border-line-strong'}`} />
+                <span className={`font-mono text-[10px] font-bold tracking-[0.05em] transition-transform duration-300 ${isActive ? 'translate-x-1 text-teal-dark' : 'text-ink-muted'}`}>{s.num}</span>
+             </div>
+             <span className={`font-mono text-[11px] font-semibold tracking-[0.05em] pl-4 transition-transform duration-300 ${isActive ? 'translate-x-1 text-ink' : 'text-ink-muted'}`}>{s.label}</span>
+           </button>
+         )
       })}
     </div>
-  );
+  )
+}
+
+function ConnectorPaths({ activeStep }: { activeStep: StepId }) {
+   return (
+     <svg viewBox="0 0 1200 600" preserveAspectRatio="none" className="absolute inset-0 w-full h-full pointer-events-none z-0">
+        {SIGNALS.map((s, i) => {
+          const startX = 400;
+          const endX = 650;
+          const startY = s.y;
+          const endY = 300;
+          
+          const cpX1 = startX + (endX - startX) * 0.4;
+          const cpX2 = endX - (endX - startX) * 0.4;
+          const path = `M ${startX} ${startY} C ${cpX1} ${startY}, ${cpX2} ${endY}, ${endX} ${endY}`;
+          
+          const isSelected = activeStep === 'sources' || activeStep === 'confidence';
+          const isActive = isSelected || 
+            (activeStep === 'time') ||
+            (activeStep === 'device' && (s.id === 'endpoint' || s.id === 'network')) ||
+            (activeStep === 'network' && s.id === 'network');
+
+          return (
+             <g key={s.id}>
+               <path id={`approach-path-${s.id}`} d={path} fill="none" stroke={s.color} strokeWidth="1.5" strokeOpacity={isActive ? 0.5 : 0.1} vectorEffect="non-scaling-stroke" className="transition-opacity duration-500" />
+               {isActive && (
+                 <circle r="2.5" fill={s.color} className="opacity-80">
+                   <animateMotion dur={`${2.5 + i * 0.2}s`} repeatCount="indefinite">
+                     <mpath href={`#approach-path-${s.id}`} />
+                   </animateMotion>
+                 </circle>
+               )}
+             </g>
+          )
+        })}
+        {/* Output path from Core to Resolution panel */}
+        <path id="approach-output-path" d="M 650 300 L 900 300" fill="none" stroke="#0F7A75" strokeWidth="1.5" strokeOpacity={activeStep === 'confidence' ? 0.6 : 0.15} vectorEffect="non-scaling-stroke" className="transition-opacity duration-500" />
+        
+        {(activeStep === 'confidence' || activeStep === 'sources') && (
+          <circle r="2.5" fill="#0F7A75" className="opacity-80">
+            <animateMotion dur="2s" repeatCount="indefinite">
+              <mpath href="#approach-output-path" />
+            </animateMotion>
+          </circle>
+        )}
+     </svg>
+   )
+}
+
+function ApproachCanvas({ activeStep, onStepChange }: { activeStep: StepId, onStepChange: (id: StepId) => void }) {
+   return (
+      <div className="hidden lg:grid grid-cols-12 gap-0 relative min-h-[600px] aspect-[21/9] w-full bg-base-800 border border-line-soft rounded-lg overflow-hidden my-16 shadow-sm">
+         
+         {/* Very subtle architectural grid inside the canvas */}
+         <div
+            className="pointer-events-none absolute inset-0"
+            style={{ backgroundImage: "linear-gradient(rgba(18,55,54,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(18,55,54,0.02) 1px, transparent 1px)", backgroundSize: "40px 40px" }}
+         />
+         
+         <ConnectorPaths activeStep={activeStep} />
+         
+         <div className="col-start-2 col-end-5 flex flex-col justify-between py-[12%] relative z-10 pr-8">
+            {SIGNALS.map(s => <SignalNode key={s.id} signal={s} activeStep={activeStep} />)}
+         </div>
+
+         <div className="col-start-6 col-end-9 flex items-center justify-center relative z-10">
+            <ContextCore size={280} state={activeStep === 'confidence' ? "locked" : "aligning"} />
+         </div>
+
+         <div className="col-start-10 col-end-12 flex flex-col justify-center relative z-10">
+            <ResolutionPanel activeStep={activeStep} />
+         </div>
+
+         <div className="col-start-12 col-end-13 flex flex-col justify-center relative z-10">
+            <StepRail activeStep={activeStep} onChange={onStepChange} />
+         </div>
+      </div>
+   );
+}
+
+function MobileApproach({ activeStep, onStepChange }: { activeStep: StepId, onStepChange: (id: StepId) => void }) {
+   return (
+      <div className="flex flex-col lg:hidden px-4 pb-16 pt-8 w-full max-w-lg mx-auto">
+         <div className="flex justify-center py-8">
+            <ContextCore size={220} state={activeStep === 'confidence' ? "locked" : "aligning"} />
+         </div>
+
+         <div className="flex flex-col gap-6 mb-12 border-l border-line-soft pl-6 ml-4">
+            {SIGNALS.map(s => {
+               const isActive = activeStep === 'sources' || activeStep === 'confidence' || 
+                 (activeStep === 'time') ||
+                 (activeStep === 'device' && (s.id === 'endpoint' || s.id === 'network')) ||
+                 (activeStep === 'network' && s.id === 'network');
+                 
+               return (
+                  <div key={s.id} className={`relative transition-opacity duration-500 ${isActive ? 'opacity-100' : 'opacity-40'}`}>
+                     <div className="absolute -left-[27px] top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.color }} />
+                     <div className="flex items-center gap-2 mb-1">
+                        <span className="font-mono text-[10px] font-bold tracking-[0.06em] uppercase" style={{ color: s.color }}>{s.label}</span>
+                     </div>
+                     <h4 className="text-[14px] font-semibold text-ink leading-snug">{s.title}</h4>
+                     <span className="mt-1 font-mono text-[10px] text-ink-faint">{s.meta}</span>
+                  </div>
+               )
+            })}
+         </div>
+
+         <div className="flex gap-3 overflow-x-auto pb-4 mb-8 snap-x" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+            {STEPS.map(s => {
+               const isActive = activeStep === s.id;
+               return (
+                  <button 
+                    key={s.id} 
+                    onClick={() => onStepChange(s.id)}
+                    className={`shrink-0 flex items-center gap-2 px-4 py-2 border rounded-full transition-colors snap-center ${isActive ? 'border-teal-dark bg-teal/5 text-teal-dark' : 'border-line text-ink-muted'}`}
+                  >
+                    <span className="font-mono text-[10px] font-bold">{s.num}</span>
+                    <span className="font-mono text-[11px] font-semibold">{s.label}</span>
+                  </button>
+               )
+            })}
+         </div>
+
+         <div className="mb-8">
+            <ResolutionPanel activeStep={activeStep} />
+         </div>
+      </div>
+   );
+}
+
+function SystemStrip() {
+  return (
+    <div className="border-t border-line-soft w-full mt-12 bg-base-900">
+      <div className="mx-auto max-w-[1440px] grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-0">
+        
+        <div className="col-span-1 lg:col-start-2 lg:col-end-6 py-12 px-6 lg:px-0">
+          <p className="font-mono text-[10px] text-ink-faint tracking-[0.1em] mb-4">02 // DOMAINS</p>
+          <p className="text-[12px] font-semibold text-ink uppercase tracking-wide mb-6">THREE DOMAINS.<br/>ONE CONTEXT.</p>
+          <div className="flex gap-8">
+             <div className="flex flex-col gap-1">
+                <span className="font-mono text-[9px] text-[#4779BD]">VISION</span>
+                <span className="text-[11px] text-ink-muted">Physical space</span>
+             </div>
+             <div className="flex flex-col gap-1">
+                <span className="font-mono text-[9px] text-[#785EAB]">ENDPOINT</span>
+                <span className="text-[11px] text-ink-muted">Device activity</span>
+             </div>
+             <div className="flex flex-col gap-1">
+                <span className="font-mono text-[9px] text-[#138983]">NETWORK</span>
+                <span className="text-[11px] text-ink-muted">Network behavior</span>
+             </div>
+          </div>
+        </div>
+
+        <div className="col-span-1 lg:col-start-7 lg:col-end-12 py-12 px-6 lg:px-12 lg:border-l border-line-soft">
+          <p className="font-mono text-[10px] text-ink-faint tracking-[0.1em] mb-4">03 // NEXT</p>
+          <p className="text-[14px] font-semibold text-ink tracking-tight mb-2">CONTEXT CREATES CLARITY.</p>
+          <p className="text-[12px] text-ink-muted max-w-sm leading-relaxed">
+            When signals are aligned in a unified coordinate system, operational ambiguity drops to near zero.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  )
 }
 
 export function FusionModel() {
-  const [activeStep, setActiveStep] = useState(0); // 0 = input signals, 1-5 = criteria
-  const [highestStep, setHighestStep] = useState(0);
-  const [mode, setMode] = useState<"match" | "mismatch">("match");
-  const rows = mode === "match" ? MATCH_ROWS : MISMATCH_ROWS;
-
-  const goTo = (n: number) => {
-    setActiveStep(n);
-    setHighestStep((h) => Math.max(h, n));
-  };
-
-  const step = activeStep >= 1 ? STEPS[activeStep - 1] : null;
-  const Visual = activeStep >= 1 ? VISUALS[activeStep - 1] : null;
-
+  const [activeStep, setActiveStep] = useState<StepId>("time");
+  
   return (
-    <Section id="how-it-thinks" className="relative overflow-hidden">
+    <Section id="how-it-thinks" className="relative overflow-hidden pt-24 border-t border-line-soft bg-base-900">
+      
+      {/* Background Grid */}
       <div
         className="pointer-events-none absolute inset-0"
         aria-hidden="true"
-        style={{ backgroundImage: "linear-gradient(rgba(18,55,54,0.04) 1px, transparent 1px)", backgroundSize: "100% 96px", opacity: 0.5 }}
+        style={{ backgroundImage: "linear-gradient(rgba(18,55,54,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(18,55,54,0.03) 1px, transparent 1px)", backgroundSize: "100px 100px", opacity: 0.5 }}
       />
-
-      <Reveal className="relative">
-        <span className="text-[11px] font-medium tracking-[0.14em] text-ink-faint">02 · THE APPROACH</span>
-        <h2 className="mt-3 max-w-[16ch] text-[38px] font-display font-bold leading-[1.0] tracking-tight text-ink sm:text-[52px] lg:text-[60px]">
+      
+      {/* Header */}
+      <Reveal className="relative z-10 mx-auto max-w-[1440px] px-6 lg:px-12">
+         <span className="text-[11px] font-medium tracking-[0.14em] text-ink-faint uppercase">02 &middot; The Approach</span>
+         <h2 className="mt-4 text-[38px] font-display font-bold leading-[1.05] tracking-tight text-ink sm:text-[52px] lg:text-[64px] max-w-[20ch]">
           Correlation isn't just timestamp matching.
-        </h2>
-        <p className="mt-4 max-w-[56ch] text-[14.5px] leading-relaxed text-ink-muted">
-          Three independent signals arrive. SENTRIX calibrates five contextual dimensions between them before
-          deciding whether they belong to one incident.
-        </p>
+         </h2>
+         <p className="mt-6 text-[18px] font-display font-medium leading-[1.4] tracking-tight text-ink-muted max-w-[40ch]">
+            Three signals arrive. <span className="font-bold text-teal-dark">SENTRIX</span> calibrates <span className="font-bold text-ink">five contextual dimensions</span> before confirming an incident.
+         </p>
       </Reveal>
 
-      {/* engine + calibration index share one fixed grid */}
-      <Reveal delayMs={150} className="relative mt-10">
-        <p className="mb-3 font-mono text-[11px] italic tracking-[0.04em] text-ink-faint">
-          Independent signals only become an incident after contextual alignment is verified.
-        </p>
-        <div className="grid gap-6 lg:grid-cols-[1fr_180px] lg:items-center lg:gap-2">
-          <ContextEngineScene activeStep={activeStep} highestStep={highestStep} />
-          <div className="border-t border-line pt-2 lg:border-l lg:border-t-0 lg:pl-2 lg:pt-0">
-            <CalibrationIndex activeStep={activeStep} highestStep={highestStep} onSelect={goTo} />
-          </div>
-        </div>
+      {/* Master Canvas */}
+      <Reveal className="relative mx-auto max-w-[1440px] w-full z-10 px-0 lg:px-12">
+         <ApproachCanvas activeStep={activeStep} onStepChange={setActiveStep} />
+         <MobileApproach activeStep={activeStep} onStepChange={setActiveStep} />
       </Reveal>
 
-      {/* active step detail — only ONE step's content renders at a time */}
-      <div className="relative mt-10 grid gap-8 border-b border-line-soft pb-10 lg:grid-cols-[1fr_1fr] lg:gap-16">
-        {activeStep === 0 || !step || !Visual ? (
-          <div>
-            <span className="font-mono text-[12px] font-bold tracking-[0.06em] text-ink-faint">INPUT SIGNALS</span>
-            <p className="mt-2 max-w-[46ch] text-[13.5px] leading-relaxed text-ink-muted">
-              Three independent observations enter SENTRIX. Each is real on its own — the question is whether
-              they belong to the same story. Select a mark on the calibration index to see how SENTRIX checks.
-            </p>
-          </div>
-        ) : (
-          <>
-            <div>
-              <span className="font-mono text-[12px] font-bold tracking-[0.06em] text-teal-dark">
-                {step.n} · {step.key}
-              </span>
-              <h3 className="mt-2 max-w-[18ch] text-[22px] font-semibold leading-snug text-ink sm:text-[26px]">{step.question}</h3>
-              <p className="mt-3 max-w-[42ch] text-[13.5px] leading-relaxed text-ink-muted">{step.copy}</p>
-              <div className="mt-5 flex items-baseline gap-3">
-                <span className="font-mono text-[26px] font-bold text-ink">{step.resultLabel}</span>
-                <span className="inline-flex items-center gap-1.5 font-mono text-[10.5px] font-semibold text-status-ok">
-                  <span className="h-1.5 w-1.5 rounded-full bg-status-ok" />
-                  MATCH
-                </span>
-              </div>
-              <p className="mt-1 text-[11.5px] text-ink-faint">{step.resultNote}</p>
-            </div>
-            <div className="border border-line bg-base-700 p-5">
-              <Visual />
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* match / mismatch explorer */}
-      <Reveal delayMs={200} className="relative mt-16">
-        <p className="text-[11px] font-medium tracking-[0.14em] text-ink-faint">POSITIVE AND NEGATIVE CASES</p>
-        <div className="mt-4 inline-flex border border-line">
-          {(["match", "mismatch"] as const).map((m) => (
-            <button
-              key={m}
-              onClick={() => setMode(m)}
-              className={`px-4 py-2 font-mono text-[11.5px] font-semibold tracking-[0.05em] transition-colors ${
-                mode === m ? "bg-teal text-white" : "bg-base-700 text-ink-muted hover:text-ink"
-              }`}
-              aria-pressed={mode === m}
-            >
-              {m === "match" ? "MATCHED CONTEXT" : "MISMATCHED CONTEXT"}
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-6 border border-line bg-base-700">
-          {mode === "mismatch" && (
-            <div className="flex items-center gap-3 border-b border-line-soft px-5 py-4">
-              <div className="relative h-10 w-16 shrink-0">
-                <div className="absolute h-8 w-12 -translate-x-1 rounded-[4px] border border-line-strong/60 bg-base-500/70" />
-                <div className="absolute h-8 w-12 translate-x-1 translate-y-1.5 rounded-[4px] border border-amber/60 bg-amber/5" />
-              </div>
-              <p className="text-[11.5px] text-ink-muted">
-                Device identity layers stop out of registration — the plates do not lock.
-              </p>
-            </div>
-          )}
-
-          <div className="divide-y divide-line-soft">
-            {rows.map((r) => (
-              <div
-                key={r.c}
-                className="flex flex-wrap items-center gap-x-4 gap-y-1 border-l-2 px-5 py-5 transition-colors duration-normal"
-                style={{
-                  borderColor: r.ok ? "rgba(15,122,117,0.4)" : "rgba(185,130,50,0.5)",
-                  backgroundColor: r.ok ? "rgba(15,122,117,0.025)" : "rgba(185,130,50,0.04)",
-                }}
-              >
-                <span className="w-20 shrink-0 font-mono text-[10.5px] tracking-[0.06em] text-ink-faint">{r.c}</span>
-                <span className="flex-1 font-mono text-[15px] font-semibold text-ink">{r.v}</span>
-                <span
-                  className="flex shrink-0 items-center gap-1.5 font-mono text-[10.5px] font-bold tracking-[0.04em]"
-                  style={{ color: r.ok ? "#3C8B72" : "#B98232" }}
-                >
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: r.ok ? "#3C8B72" : "#B98232" }} />
-                  {r.ok ? "MATCH" : "MISMATCH"}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* the decisive moment -- not a footer line */}
-          <div className="border-t-2 px-5 py-6" style={{ borderColor: mode === "match" ? "#C75D56" : "rgba(185,130,50,0.5)" }}>
-            {mode === "match" ? (
-              <>
-                <p className="font-mono text-[11px] font-bold tracking-[0.1em] text-status-critical">CONTEXT RESOLVED</p>
-                <p className="mt-1.5 font-mono text-[22px] font-bold leading-tight text-ink">INC-0001</p>
-                <p className="mt-1 text-[12.5px] text-ink-muted">Suspicious multi-signal activity — incident created.</p>
-              </>
-            ) : (
-              <>
-                <p className="font-mono text-[11px] font-bold tracking-[0.1em] text-amber">CONTEXT MISMATCH</p>
-                <p className="mt-1.5 text-[15px] font-semibold text-ink">Events remain separate.</p>
-                <p className="mt-1 text-[12.5px] text-ink-muted">No incident created — this is correct behavior, not a system failure.</p>
-              </>
-            )}
-          </div>
-        </div>
-      </Reveal>
-
-      {/* editorial statement */}
-      <Reveal delayMs={250} className="relative mt-20 text-center">
-        <h3 className="text-[34px] font-display font-bold leading-[1.05] tracking-tight text-ink sm:text-[44px] lg:text-[52px]">
-          SAME TIME <span className="text-teal-dark">≠</span> SAME STORY.
-        </h3>
-      </Reveal>
+      <SystemStrip />
     </Section>
   );
 }

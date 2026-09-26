@@ -1,6 +1,7 @@
 import { Eyebrow, IconTextLink } from "../shared/ui";
 import { SignalDiagram } from "./SignalDiagram";
 import { PhoneNetworkField } from "./PhoneNetworkField";
+import { LiveTransfersWidget } from "../components/LiveTransfersWidget";
 
 function ArrowIcon() {
   return (
@@ -81,7 +82,8 @@ export function Hero() {
           </div>
         </div>
 
-        <div className="relative flex w-full flex-1 flex-col items-center justify-center lg:justify-end">
+          <div className="relative flex w-full flex-1 flex-col items-center justify-center lg:justify-end">
+          <LiveTransfersWidget />
           <div className="hidden w-full max-w-[760px] lg:block">
             <PhoneNetworkField />
           </div>

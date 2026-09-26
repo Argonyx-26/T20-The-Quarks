@@ -161,6 +161,18 @@ class FusionEngine:
         severity = max(e.severity for e in group)
         confidence = combine_confidence([e.confidence for e in group])
         sources = sorted({e.source for e in group})
+        
+        # RISK ASSESSMENT FOR ENDPOINT DEMO
+        transfer_event = next((e for e in group if e.event_type.startswith("file_transfer")), None)
+        network_event = next((e for e in group if e.source == "network"), None)
+        if transfer_event and network_event:
+            # Configured Demo Rule: 
+            # Unusual transfer + unexpected device + network deviation = Suspicious
+            vol = transfer_event.attributes.get("file_size", 0)
+            device_expected = transfer_event.attributes.get("device_expected", True)
+            if vol > 50000000 and not device_expected:
+                severity = max(severity, 85)
+                confidence = max(confidence, 0.95)
 
         incident = Incident(
             incident_id=self.store.next_incident_id(),

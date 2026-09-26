@@ -17,6 +17,8 @@ import type {
   RealtimeStatus,
   SourceHealth,
   SourceHealthStatus,
+  Transfer,
+  TransferStatus,
 } from "../domain";
 import { BackendActionUnavailableError, type MissionControlClient } from "./missionControlClient";
 
@@ -45,7 +47,11 @@ import { BackendActionUnavailableError, type MissionControlClient } from "./miss
  *    that state is demonstrated via fixtures until the backend exposes it.
  */
 
-const WS_URL = import.meta.env.VITE_WS_URL ?? "ws://localhost:8000/ws";
+// Relative by default so phones on the LAN talking to the laptop's own
+// address get proxied to the backend the same way `/api` does (see
+// vite.config.ts) -- only overridden by VITE_WS_URL for a split-origin setup.
+const wsProtocol = typeof window !== "undefined" && window.location.protocol === "https:" ? "wss:" : "ws:";
+const WS_URL = import.meta.env.VITE_WS_URL ?? `${wsProtocol}//${typeof window !== "undefined" ? window.location.host : "localhost:8000"}/ws`;
 const RECONNECT_BASE_MS = 800;
 const RECONNECT_MAX_MS = 8000;
 const DEVICE_ONLINE_WINDOW_MS = 60_000;
@@ -226,6 +232,74 @@ export function deriveDevices(events: NormalizedEvent[], nowMs: number): Device[
     const ageMs = device.lastSeen ? nowMs - new Date(device.lastSeen).getTime() : Infinity;
     return { ...device, status: ageMs < DEVICE_ONLINE_WINDOW_MS ? "online" : "offline" };
   });
+}
+
+/**
+ * Projects the real `file_transfer_*` events emitted by
+ * sensors/mac_endpoint_agent.py into a per-transfer progress view. This is
+ * presentation aggregation over already-real, already-ingested events
+ * (same category as deriveDevices) -- it does not decide anything the
+ * backend hasn't already told us via event attributes.
+ */
+export function deriveTransfers(events: NormalizedEvent[]): Transfer[] {
+  const byId = new Map<string, Transfer>();
+  const sorted = [...events].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+
+  for (const event of sorted) {
+    if (!event.eventType.startsWith("file_transfer")) continue;
+    const attrs = (event.attributes ?? {}) as Record<string, unknown>;
+    const transferId = String(attrs.transfer_id ?? attrs.filename ?? "unknown");
+
+    let t = byId.get(transferId);
+    if (!t) {
+      t = {
+        transferId,
+        fileName: String(attrs.filename ?? "unknown"),
+        fileSize: Number(attrs.file_size ?? 0),
+        sender: String(attrs.device ?? "UNKNOWN"),
+        receiver: event.deviceId ?? event.assetId ?? "UNKNOWN",
+        status: "CONNECTING",
+        bytesTransferred: Number(attrs.file_size ?? 0),
+        totalBytes: Number(attrs.total_bytes ?? 1),
+        percentage: 0,
+        transferSpeed: 0,
+        eta: 0,
+        startedAt: event.timestamp,
+        updatedAt: event.timestamp,
+        direction: (attrs.transfer_direction as Transfer["direction"]) ?? "INBOUND",
+        history: [],
+      };
+      byId.set(transferId, t);
+    }
+
+    t.bytesTransferred = Number(attrs.file_size ?? t.bytesTransferred);
+    t.updatedAt = event.timestamp;
+
+    const ts = new Date(event.timestamp).getTime();
+    t.history.push({ timestamp: ts, bytes: t.bytesTransferred });
+    if (t.history.length > 10) t.history.shift();
+
+    if (t.history.length > 1) {
+      const first = t.history[0];
+      const last = t.history[t.history.length - 1];
+      const dt = (last.timestamp - first.timestamp) / 1000;
+      t.transferSpeed = dt > 0 ? (last.bytes - first.bytes) / dt : t.transferSpeed;
+    }
+
+    t.percentage = Math.min(100, Math.max(0, (t.bytesTransferred / t.totalBytes) * 100));
+    t.eta = t.transferSpeed > 0 ? (t.totalBytes - t.bytesTransferred) / t.transferSpeed : 0;
+
+    if (event.eventType === "file_transfer_progress") {
+      t.status = "TRANSFERRING";
+    } else if (attrs.status === "COMPLETED") {
+      t.status = "COMPLETED" as TransferStatus;
+      t.completedAt = event.timestamp;
+      t.percentage = 100;
+      t.bytesTransferred = t.totalBytes;
+    }
+  }
+
+  return Array.from(byId.values()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
 class SentrixMissionControlApi implements MissionControlClient {

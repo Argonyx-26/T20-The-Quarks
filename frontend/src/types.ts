@@ -1,6 +1,27 @@
 export type Source = "vision" | "endpoint" | "network";
 export type IncidentStatus = "OPEN" | "ACKNOWLEDGED" | "RESOLVED";
 export type SensorStatus = "ok" | "stale" | "never_seen";
+export type TransferStatus = 'QUEUED' | 'CONNECTING' | 'TRANSFERRING' | 'COMPLETING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'PAUSED';
+
+export interface Transfer {
+  transferId: string;
+  fileName: string;
+  fileSize: number; // Currently transferred
+  sender: string;
+  receiver: string;
+  status: TransferStatus;
+  bytesTransferred: number;
+  totalBytes: number;
+  percentage: number;
+  transferSpeed: number; 
+  eta: number; 
+  startedAt: string;
+  updatedAt: string;
+  completedAt?: string;
+  error?: string;
+  direction: 'INBOUND' | 'OUTBOUND';
+  history: { timestamp: number; bytes: number }[];
+}
 
 export interface SentrixEvent {
   event_id: string;

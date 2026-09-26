@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useMissionControlData } from "../hooks/useMissionControlData";
+import { useMissionControlContext } from "../MissionControlContext";
 import { TopCommandRail } from "../components/TopCommandRail";
 import { ConnectionBanner, DegradedSourcesBanner } from "../components/ConnectionBanner";
 import { DeviceTopology } from "../components/DeviceTopology";
@@ -12,10 +12,11 @@ import { CorrelationBasis } from "../components/CorrelationBasis";
 import { EvidenceDrawer } from "../components/EvidenceDrawer";
 import { OperatorConsole } from "../components/OperatorConsole";
 import { DevPreviewSwitcher } from "../components/DevPreviewSwitcher";
+import { TransferDashboard } from "../components/TransferDashboard";
 import type { IncidentStatus, NormalizedEvent } from "../domain";
 
 export default function MissionControl() {
-  const mc = useMissionControlData();
+  const mc = useMissionControlContext();
   const [selectedEvent, setSelectedEvent] = useState<NormalizedEvent | null>(null);
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
@@ -110,7 +111,9 @@ export default function MissionControl() {
           <SourceHealthPanel sourceHealth={snapshot.sourceHealth} />
         </div>
 
-        <div className="grid min-h-0 grid-cols-1 gap-2 lg:grid-cols-[1.3fr_1fr]">
+        {/* lower: transfer dashboard | event stream | timeline + reasoning */}
+        <div className="grid min-h-0 grid-cols-1 gap-2 lg:grid-cols-[1fr_1.3fr_1fr]">
+          <TransferDashboard transfers={mc.transfers} online={snapshot.realtimeStatus === "connected"} />
           <EventStream
             events={snapshot.events}
             incidents={snapshot.incidents}

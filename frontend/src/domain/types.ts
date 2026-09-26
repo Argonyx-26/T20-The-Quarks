@@ -119,6 +119,44 @@ export interface FusionEvaluation {
   incidentId?: string;
 }
 
+export type TransferStatus =
+  | "QUEUED"
+  | "CONNECTING"
+  | "TRANSFERRING"
+  | "COMPLETING"
+  | "COMPLETED"
+  | "FAILED"
+  | "CANCELLED"
+  | "PAUSED";
+
+/**
+ * Derived, not backend-authored: projected client-side from real
+ * `file_transfer_*` events (see services/missionControlApi.ts
+ * `deriveTransfers`) the same way Device[] is projected from events.
+ * Every field here traces back to a real event's `attributes` -- nothing
+ * is fabricated, but percentage/speed/eta are computed presentation state,
+ * not backend truth, so treat them as approximate.
+ */
+export interface Transfer {
+  transferId: string;
+  fileName: string;
+  fileSize: number;
+  sender: string;
+  receiver: string;
+  status: TransferStatus;
+  bytesTransferred: number;
+  totalBytes: number;
+  percentage: number;
+  transferSpeed: number;
+  eta: number;
+  startedAt: string;
+  updatedAt: string;
+  completedAt?: string;
+  error?: string;
+  direction: "INBOUND" | "OUTBOUND";
+  history: { timestamp: number; bytes: number }[];
+}
+
 export type RealtimeStatus =
   | "connecting"
   | "connected"
