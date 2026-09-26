@@ -1,4 +1,13 @@
-import type { ConfigResponse, HealthResponse, Incident, SentrixEvent } from "./types";
+import type {
+  ConfigResponse,
+  HealthResponse,
+  Incident,
+  PairingConfirmResponse,
+  PairingCreateResponse,
+  PairingStatusResponse,
+  SentrixEvent,
+  WireDevice,
+} from "./types";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";
 
@@ -39,6 +48,19 @@ export const api = {
     request<Incident>(`/api/incidents/${encodeURIComponent(incidentId)}/status`, {
       method: "POST",
       body: JSON.stringify({ status }),
+    }),
+  devices: () => request<{ count: number; devices: WireDevice[] }>("/api/devices"),
+  createPairing: () => request<PairingCreateResponse>("/api/pairing", { method: "POST" }),
+  getPairingStatus: (token: string) => request<PairingStatusResponse>(`/api/pairing/${encodeURIComponent(token)}`),
+  confirmPairing: (token: string, body: { display_name?: string; device_type?: string }) =>
+    request<PairingConfirmResponse>(`/api/pairing/${encodeURIComponent(token)}/confirm`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  deviceHeartbeat: (deviceId: string, deviceToken: string) =>
+    request<WireDevice>(`/api/devices/${encodeURIComponent(deviceId)}/heartbeat`, {
+      method: "POST",
+      headers: { "X-Device-Token": deviceToken },
     }),
 };
 

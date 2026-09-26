@@ -90,7 +90,10 @@ export type WsMessageType =
   | "incident.created"
   | "incident.updated"
   | "sensor.health"
-  | "system.reset";
+  | "system.reset"
+  | "device.connected"
+  | "device.updated"
+  | "device.disconnected";
 
 export interface WsMessage {
   type: WsMessageType;
@@ -98,3 +101,50 @@ export interface WsMessage {
 }
 
 export type ConnState = "connecting" | "live" | "reconnecting" | "disconnected";
+
+// -- Device registry + pairing (wire shapes, snake_case, matches backend) --
+
+export type WireDeviceStatus = "ONLINE" | "DEGRADED" | "OFFLINE" | "UNKNOWN";
+
+export interface WireDevice {
+  device_id: string;
+  display_name: string;
+  device_type: string;
+  ip_address: string | null;
+  status: WireDeviceStatus;
+  first_seen: string;
+  last_seen: string;
+  paired_at: string | null;
+}
+
+export interface PairingCreateResponse {
+  token: string;
+  expires_at: string;
+  ttl_seconds: number;
+}
+
+export interface PairingStatusResponse {
+  valid: boolean;
+  used: boolean;
+  expired: boolean;
+  expires_at: string;
+  session_label: string;
+}
+
+export interface PairingConfirmResponse {
+  device_id: string;
+  device_token: string;
+  status: WireDeviceStatus;
+  ip_address: string | null;
+}
+
+/** The minimal envelope a paired phone receives -- already the shape the
+ * backend sends, no snake_case translation needed since it's authored as
+ * camelCase on the wire specifically for this one message type. */
+export interface WireAlertEnvelope {
+  incidentId: string;
+  severity: number;
+  title: string;
+  deviceName: string;
+  timestamp: string;
+}

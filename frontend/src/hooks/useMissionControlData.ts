@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Incident, IncidentStatus, MissionControlSnapshot, NormalizedEvent, RealtimeStatus } from "../domain";
-import { deriveDevices, missionControlApi } from "../services/missionControlApi";
+import type { Device, Incident, IncidentStatus, MissionControlSnapshot, NormalizedEvent, RealtimeStatus } from "../domain";
+import { missionControlApi } from "../services/missionControlApi";
 import { BackendActionUnavailableError } from "../services/missionControlClient";
 
 const MAX_EVENTS_KEPT = 300;
@@ -70,7 +70,7 @@ export function useMissionControlData(): MissionControlData {
               let events = upsertBy(prev.events, message.data, (e: NormalizedEvent) => e.eventId);
               events = events.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
               if (events.length > MAX_EVENTS_KEPT) events = events.slice(events.length - MAX_EVENTS_KEPT);
-              return { ...prev, events, devices: deriveDevices(events, Date.now()) };
+              return { ...prev, events };
             });
             break;
           }
@@ -86,7 +86,27 @@ export function useMissionControlData(): MissionControlData {
             setSnapshot((prev) => (prev ? { ...prev, sourceHealth: message.data } : prev));
             break;
           }
+          case "deviceConnected":
+          case "deviceUpdated": {
+            setSnapshot((prev) => {
+              if (!prev) return prev;
+              return { ...prev, devices: upsertBy(prev.devices, message.data, (d: Device) => d.deviceId) };
+            });
+            break;
+          }
+          case "deviceDisconnected": {
+            // Backend keeps the device record (OFFLINE, not deleted) -- see
+            // store.py recompute_all_device_statuses. Reflect that as an
+            // upsert, not a removal, so "last seen" stays visible.
+            setSnapshot((prev) => {
+              if (!prev) return prev;
+              return { ...prev, devices: upsertBy(prev.devices, message.data, (d: Device) => d.deviceId) };
+            });
+            break;
+          }
           case "reset": {
+            // Backend's /api/demo/reset clears the device registry too
+            // (store.py Store.reset) -- mirror that here.
             setSnapshot((prev) => (prev ? { ...prev, events: [], incidents: [], devices: [] } : prev));
             break;
           }

@@ -29,12 +29,14 @@ export const sourceHealthColor: Record<SourceHealthStatus, string> = {
 
 export const deviceStatusLabel: Record<DeviceStatus, string> = {
   online: "Online",
+  degraded: "Degraded",
   offline: "Offline",
   unknown: "Unknown",
 };
 
 export const deviceStatusColor: Record<DeviceStatus, string> = {
   online: "#168B84",
+  degraded: "#B9842D",
   offline: "#8A9596",
   unknown: "#8A9596",
 };

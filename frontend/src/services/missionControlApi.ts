@@ -2,17 +2,26 @@ import { api } from "../api";
 import type {
   ConnState,
   Incident as WireIncident,
+  PairingConfirmResponse,
   SensorStatus,
   SentrixEvent,
   Source as WireSource,
+  WireAlertEnvelope,
+  WireDevice,
+  WireDeviceStatus,
   WsMessage,
 } from "../types";
 import type {
+  AlertEnvelope,
   Device,
+  DeviceStatus,
   FusionCriterion,
   Incident,
   MissionControlSnapshot,
   NormalizedEvent,
+  PairingConfirmResult,
+  PairingSession,
+  PairingStatus,
   RealtimeMessage,
   RealtimeStatus,
   SourceHealth,
@@ -54,7 +63,6 @@ const wsProtocol = typeof window !== "undefined" && window.location.protocol ===
 const WS_URL = import.meta.env.VITE_WS_URL ?? `${wsProtocol}//${typeof window !== "undefined" ? window.location.host : "localhost:8000"}/ws`;
 const RECONNECT_BASE_MS = 800;
 const RECONNECT_MAX_MS = 8000;
-const DEVICE_ONLINE_WINDOW_MS = 60_000;
 
 function toIncidentStatus(status: WireIncident["status"]): Incident["status"] {
   switch (status) {
@@ -196,42 +204,44 @@ function mapIncident(inc: WireIncident, wireEventsById: Map<string, SentrixEvent
   };
 }
 
-/** Devices are derived from real observed asset_id/zone_id on events --
- * this is honest aggregation of backend truth, not invention. The backend
- * has no dedicated device registry endpoint today. Exported so the
- * realtime hook can recompute devices locally as events stream in,
- * without an extra REST round trip per message. */
-export function deriveDevices(events: NormalizedEvent[], nowMs: number): Device[] {
-  const byId = new Map<string, Device & { _sources: Set<string> }>();
-  for (const e of events) {
-    if (!e.deviceId) continue;
-    const existing = byId.get(e.deviceId);
-    const isNewer = !existing || (existing.lastSeen ?? "") < e.timestamp;
-    if (!existing) {
-      byId.set(e.deviceId, {
-        deviceId: e.deviceId,
-        displayName: e.deviceName ?? e.deviceId,
-        ipAddress: e.ipAddress,
-        zoneId: e.zoneId,
-        status: "unknown",
-        firstSeen: e.timestamp,
-        lastSeen: e.timestamp,
-        _sources: new Set([e.source]),
-      });
-    } else {
-      existing._sources.add(e.source);
-      if (existing.firstSeen && e.timestamp < existing.firstSeen) existing.firstSeen = e.timestamp;
-      if (isNewer) {
-        existing.lastSeen = e.timestamp;
-        existing.zoneId = e.zoneId ?? existing.zoneId;
-        existing.ipAddress = e.ipAddress ?? existing.ipAddress;
-      }
-    }
+function toDeviceStatus(status: WireDeviceStatus): DeviceStatus {
+  switch (status) {
+    case "ONLINE":
+      return "online";
+    case "DEGRADED":
+      return "degraded";
+    case "OFFLINE":
+      return "offline";
+    default:
+      return "unknown";
   }
-  return Array.from(byId.values()).map(({ _sources: _s, ...device }) => {
-    const ageMs = device.lastSeen ? nowMs - new Date(device.lastSeen).getTime() : Infinity;
-    return { ...device, status: ageMs < DEVICE_ONLINE_WINDOW_MS ? "online" : "offline" };
-  });
+}
+
+/** A device exists here ONLY after a real pairing confirmation on the
+ * backend -- there is no event-derived projection anymore. IP is
+ * whatever the backend actually observed (may be absent); device_id is
+ * identity, never IP. */
+function mapWireDevice(d: WireDevice): Device {
+  return {
+    deviceId: d.device_id,
+    displayName: d.display_name,
+    deviceType: d.device_type,
+    ipAddress: d.ip_address ?? undefined,
+    status: toDeviceStatus(d.status),
+    firstSeen: d.first_seen,
+    lastSeen: d.last_seen,
+    pairedAt: d.paired_at ?? undefined,
+  };
+}
+
+function mapAlertEnvelope(a: WireAlertEnvelope): AlertEnvelope {
+  return {
+    incidentId: a.incidentId,
+    severity: a.severity,
+    title: a.title,
+    deviceName: a.deviceName,
+    timestamp: a.timestamp,
+  };
 }
 
 /**
@@ -318,8 +328,8 @@ class SentrixMissionControlApi implements MissionControlClient {
   }
 
   async getDevices(): Promise<Device[]> {
-    const events = await this.getEvents(300);
-    return deriveDevices(events, Date.now());
+    const res = await api.devices();
+    return res.devices.map(mapWireDevice);
   }
 
   async getIncidents(): Promise<Incident[]> {
@@ -347,13 +357,14 @@ class SentrixMissionControlApi implements MissionControlClient {
   }
 
   async getSnapshot(): Promise<MissionControlSnapshot> {
-    const [events, incidents, sourceHealth] = await Promise.all([
+    const [devices, events, incidents, sourceHealth] = await Promise.all([
+      this.getDevices(),
       this.getEvents(300),
       this.getIncidents(),
       this.getSourceHealth(),
     ]);
     return {
-      devices: deriveDevices(events, Date.now()),
+      devices,
       events,
       incidents,
       sourceHealth,
@@ -411,6 +422,18 @@ class SentrixMissionControlApi implements MissionControlClient {
           case "system.reset": {
             this.eventsCache.clear();
             onMessage({ type: "reset" });
+            break;
+          }
+          case "device.connected": {
+            onMessage({ type: "deviceConnected", data: mapWireDevice(msg.data as WireDevice) });
+            break;
+          }
+          case "device.updated": {
+            onMessage({ type: "deviceUpdated", data: mapWireDevice(msg.data as WireDevice) });
+            break;
+          }
+          case "device.disconnected": {
+            onMessage({ type: "deviceDisconnected", data: mapWireDevice(msg.data as WireDevice) });
             break;
           }
         }
@@ -471,3 +494,104 @@ class SentrixMissionControlApi implements MissionControlClient {
 }
 
 export const missionControlApi: MissionControlClient = new SentrixMissionControlApi();
+
+/**
+ * The phone's own, separate concern -- not part of MissionControlClient,
+ * because a phone never needs (and must never get) the mission-control
+ * realtime role. Pure REST, no shared state with the class above.
+ */
+export const pairingApi = {
+  async create(): Promise<PairingSession> {
+    const res = await api.createPairing();
+    return { token: res.token, expiresAt: res.expires_at, ttlSeconds: res.ttl_seconds };
+  },
+
+  async status(token: string): Promise<PairingStatus> {
+    const res = await api.getPairingStatus(token);
+    return { valid: res.valid, used: res.used, expired: res.expired, expiresAt: res.expires_at, sessionLabel: res.session_label };
+  },
+
+  async confirm(token: string, info: { displayName?: string; deviceType?: string }): Promise<PairingConfirmResult> {
+    const res: PairingConfirmResponse = await api.confirmPairing(token, {
+      display_name: info.displayName,
+      device_type: info.deviceType,
+    });
+    return { deviceId: res.device_id, deviceToken: res.device_token, status: toDeviceStatus(res.status), ipAddress: res.ip_address ?? undefined };
+  },
+};
+
+export async function sendDeviceHeartbeat(deviceId: string, deviceToken: string): Promise<void> {
+  await api.deviceHeartbeat(deviceId, deviceToken);
+}
+
+/**
+ * A paired phone's OWN realtime connection -- role=paired_device, gated by
+ * its device credential at the WebSocket handshake. This is a genuinely
+ * different channel from missionControlApi.subscribe(): the server only
+ * ever pushes `incident.alert` (minimal envelope) down it, never a full
+ * event/incident payload -- see backend/app/ws.py ConnectionManager.
+ */
+export function subscribePairedDevice(
+  deviceId: string,
+  deviceToken: string,
+  onAlert: (alert: AlertEnvelope) => void,
+  onStatusChange: (status: RealtimeStatus | "rejected") => void,
+): () => void {
+  let ws: WebSocket | null = null;
+  let reconnectAttempt = 0;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let closedByUs = false;
+
+  const connect = () => {
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    closedByUs = false;
+    onStatusChange(reconnectAttempt > 0 ? "reconnecting" : "connecting");
+
+    const params = new URLSearchParams({ role: "paired_device", device_id: deviceId, token: deviceToken });
+    ws = new WebSocket(`${WS_URL}?${params.toString()}`);
+
+    ws.onopen = () => {
+      reconnectAttempt = 0;
+      onStatusChange("connected");
+    };
+
+    ws.onmessage = (evt) => {
+      try {
+        const msg = JSON.parse(evt.data) as { type: string; data: unknown };
+        if (msg.type === "incident.alert") {
+          onAlert(mapAlertEnvelope(msg.data as WireAlertEnvelope));
+        }
+      } catch {
+        // ignore malformed frames
+      }
+    };
+
+    ws.onclose = (evt) => {
+      if (closedByUs) return;
+      // 4401 is this backend's own close code for "credential rejected at
+      // handshake" (see backend/app/main.py) -- reconnecting would never
+      // succeed, so surface it distinctly rather than retrying forever.
+      if (evt.code === 4401) {
+        onStatusChange("rejected");
+        return;
+      }
+      onStatusChange("reconnecting");
+      const delay = Math.min(RECONNECT_BASE_MS * 2 ** reconnectAttempt, RECONNECT_MAX_MS);
+      reconnectAttempt += 1;
+      if (reconnectAttempt > 4) onStatusChange("disconnected");
+      reconnectTimer = setTimeout(connect, delay);
+    };
+
+    ws.onerror = () => {
+      ws?.close();
+    };
+  };
+
+  connect();
+
+  return () => {
+    closedByUs = true;
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    ws?.close();
+  };
+}

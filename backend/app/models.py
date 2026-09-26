@@ -118,6 +118,7 @@ class PairingConfirmResult(BaseModel):
     device_id: str
     device_token: str
     status: DeviceStatus
+    ip_address: Optional[str] = None
 
 
 class ValidationErrorDetail(BaseModel):

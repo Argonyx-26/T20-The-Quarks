@@ -272,7 +272,7 @@ async def confirm_pairing(token: str, payload: dict[str, Any], request: Request)
         log_stage("DEVICE_PAIRED", device_id=device_id, display_name=display_name, ip_address=ip_address)
 
     await manager.broadcast("device.connected", device.model_dump())
-    return {"device_id": device_id, "device_token": device_token, "status": device.status}
+    return {"device_id": device_id, "device_token": device_token, "status": device.status, "ip_address": device.ip_address}
 
 
 @app.get("/api/devices")

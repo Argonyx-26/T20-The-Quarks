@@ -16,7 +16,7 @@
 
 export type Source = "vision" | "endpoint" | "network";
 
-export type DeviceStatus = "online" | "offline" | "unknown";
+export type DeviceStatus = "online" | "degraded" | "offline" | "unknown";
 
 export interface Device {
   deviceId: string;
@@ -27,6 +27,10 @@ export interface Device {
   status: DeviceStatus;
   firstSeen?: string;
   lastSeen?: string;
+  /** Present only for devices that went through real QR pairing -- absent
+   * for anything projected from event history (there is no such
+   * projection into this list anymore; kept optional for that reason). */
+  pairedAt?: string;
 }
 
 export interface NormalizedEvent {
@@ -179,4 +183,41 @@ export type RealtimeMessage =
   | { type: "event"; data: NormalizedEvent }
   | { type: "incident"; data: Incident }
   | { type: "sourceHealth"; data: SourceHealth[] }
+  | { type: "deviceConnected"; data: Device }
+  | { type: "deviceUpdated"; data: Device }
+  | { type: "deviceDisconnected"; data: Device }
   | { type: "reset" };
+
+// -- Device pairing -----------------------------------------------------
+
+export interface PairingSession {
+  token: string;
+  expiresAt: string;
+  ttlSeconds: number;
+}
+
+export interface PairingStatus {
+  valid: boolean;
+  used: boolean;
+  expired: boolean;
+  expiresAt: string;
+  sessionLabel: string;
+}
+
+export interface PairingConfirmResult {
+  deviceId: string;
+  deviceToken: string;
+  status: DeviceStatus;
+  ipAddress?: string;
+}
+
+/** The minimal envelope a paired phone ever receives for a qualifying
+ * incident -- see services/missionControlApi.ts subscribePairedDevice.
+ * No evidence, no timeline, no raw attributes -- ever. */
+export interface AlertEnvelope {
+  incidentId: string;
+  severity: number;
+  title: string;
+  deviceName: string;
+  timestamp: string;
+}

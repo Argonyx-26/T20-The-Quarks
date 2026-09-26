@@ -34,15 +34,16 @@ export function TransferDashboard({ transfers, online }: { transfers: Transfer[]
 
     return (
         <div className="flex flex-col h-full bg-base-900 border border-line-soft p-4 overflow-y-auto">
-            <div className="mb-6">
-                <h3 className="font-mono text-[14px] font-bold text-ink tracking-widest uppercase border-b border-line pb-2 mb-4">MISSION CONTROL</h3>
-                
-                <h4 className="font-mono text-[10px] text-ink-faint tracking-widest mb-2">SYSTEM</h4>
-                <div className="flex items-center gap-2 mb-4">
-                    <div className={`w-2 h-2 rounded-full ${online ? 'bg-teal' : 'bg-status-critical'} animate-pulse`}></div>
-                    <span className="font-mono text-[12px] text-ink">{online ? 'Online' : 'Offline'}</span>
+            <div className="mb-4 flex items-center justify-between border-b border-line pb-2">
+                <h3 className="font-mono text-[12px] font-bold text-ink tracking-widest uppercase">FILE TRANSFER ACTIVITY</h3>
+                <div className="flex items-center gap-1.5">
+                    <div className={`h-1.5 w-1.5 rounded-full ${online ? 'bg-teal' : 'bg-status-critical'}`}></div>
+                    <span className="font-mono text-[9.5px] tracking-wide text-ink-faint">MAC ENDPOINT</span>
                 </div>
             </div>
+            <p className="mb-4 text-[10.5px] leading-snug text-ink-faint">
+                Real byte counts from files observed at the Mac endpoint sensor -- not general network throughput.
+            </p>
 
             <div className="mb-6">
                 <h4 className="font-mono text-[10px] text-ink-faint tracking-widest mb-2 border-b border-line pb-1">ACTIVE TRANSFERS</h4>
@@ -59,7 +60,7 @@ export function TransferDashboard({ transfers, online }: { transfers: Transfer[]
                             </div>
                             <div className="flex justify-between font-mono text-[11px] mt-2 text-ink-muted">
                                 <span>{formatBytes(t.transferSpeed)}/s • {t.percentage === 100 ? 'Finishing...' : `${formatETA(t.eta)} remaining`}</span>
-                                <span>{t.sender} → {t.receiver}</span>
+                                <span title="Not a verified hardware identity -- a heuristic label from the endpoint sensor">source: {t.sender} (unverified)</span>
                             </div>
                             <div className="mt-1 font-mono text-[11px] font-bold text-teal">
                                 {t.status}
