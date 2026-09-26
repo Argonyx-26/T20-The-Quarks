@@ -16,18 +16,21 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
+import os
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import config
 from .fusion import FusionEngine, resolve_zone
 from .logging_conf import log_stage
-from .models import Event, EventIn, Incident, IngestError, ValidationErrorDetail
+from .models import Device, Event, EventIn, Incident, IngestError, ValidationErrorDetail
 from .security import BodySizeLimitMiddleware, SecurityHeadersMiddleware, rate_limit, websocket_origin_allowed
 from .store import store
 from .validation import EventRejected, parse_event
 from .ws import manager
+
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 @asynccontextmanager
@@ -349,6 +352,145 @@ async def device_heartbeat(device_id: str, request: Request):
 
     await manager.broadcast("device.updated", device.model_dump())
     return device.model_dump()
+
+
+# ---------------------------------------------------------------------------
+# File upload + real SENTRIX event + Device 2 alert
+# ---------------------------------------------------------------------------
+
+UPLOAD_DIR = Path(os.environ.get("SENTRIX_UPLOAD_DIR", BASE_DIR / "uploads"))
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+MAX_UPLOAD_BYTES = int(os.environ.get("SENTRIX_MAX_UPLOAD_BYTES", 50 * 1024 * 1024))  # 50 MB
+
+
+def _safe_filename(filename: str) -> str:
+    """Sanitize filename for safe storage."""
+    import re
+    # Remove path components, keep only the filename
+    filename = os.path.basename(filename)
+    # Replace dangerous characters
+    filename = re.sub(r"[^a-zA-Z0-9._-]", "_", filename)
+    # Limit length
+    if len(filename) > 255:
+        name, ext = os.path.splitext(filename)
+        filename = name[:255 - len(ext)] + ext
+    return filename or "upload"
+
+
+async def _get_device2_if_online() -> Optional[Device]:
+    """Find the most recently paired device that is ONLINE.
+    This targets the second phone that was paired and is currently connected."""
+    async with store.lock:
+        devices = store.list_devices()
+    # Filter paired_web devices, sort by paired_at (most recent first)
+    paired_devices = [d for d in devices if d.transport == "paired_web" and d.paired_at]
+    paired_devices.sort(key=lambda d: d.paired_at, reverse=True)
+    # Return the most recently paired device that is ONLINE
+    for device in paired_devices:
+        if device.status == "ONLINE":
+            return device
+    return None
+
+
+async def _send_file_alert_to_device(device_id: str, upload_data: dict) -> bool:
+    """Send file.alert to a specific paired device via its WebSocket."""
+    for ws, dev_id in list(manager.paired.items()):
+        if dev_id == device_id:
+            try:
+                payload = json.dumps({"type": "file.alert", "data": upload_data}, default=str)
+                await ws.send_text(payload)
+                log_stage("FILE_ALERT_SENT", device_id=device_id, upload_id=upload_data.get("uploadId"))
+                return True
+            except Exception as e:
+                log_stage("FILE_ALERT_FAILED", device_id=device_id, error=str(e))
+                return False
+    return False
+
+
+@app.post("/api/files/upload", dependencies=[Depends(rate_limit)])
+async def upload_file(file: UploadFile = File(...), request: Request = None):
+    """Receive a real file, create a SENTRIX endpoint event, and alert Device 2 if online."""
+    # Read and save file
+    content = await file.read()
+    file_bytes = len(content)
+    
+    if file_bytes > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail={"error": "file_too_large", "max_bytes": MAX_UPLOAD_BYTES})
+    
+    safe_name = _safe_filename(file.filename or "upload")
+    upload_id = secrets.token_urlsafe(16)
+    saved_name = f"{upload_id}_{safe_name}"
+    saved_path = UPLOAD_DIR / saved_name
+    
+    # Save to disk
+    with open(saved_path, "wb") as f:
+        f.write(content)
+    
+    received_at = datetime.now(timezone.utc).isoformat()
+    
+    log_stage("UPLOAD_RECEIVED", upload_id=upload_id, filename=safe_name, bytes=file_bytes, mime_type=file.content_type)
+    
+    # Create SENTRIX event through normal ingestion pipeline
+    event_payload = {
+        "event_id": f"upload-{upload_id}",
+        "timestamp": received_at,
+        "source": "endpoint",
+        "event_type": "file_upload_detected",
+        "asset_id": "MISSION-CONTROL",
+        "zone_id": None,
+        "severity": 45,
+        "confidence": 0.95,
+        "attributes": {
+            "filename": safe_name,
+            "bytes": file_bytes,
+            "mime_type": file.content_type or "application/octet-stream",
+            "upload_id": upload_id,
+        },
+        "evidence": {
+            "stored_path": str(saved_path),
+        },
+    }
+    
+    # Ingest through the real pipeline
+    event, incident, created, duplicate = await ingest_event(event_payload)
+    
+    # Check for Device 2 and send alert
+    device2 = await _get_device2_if_online()
+    alert_delivered = False
+    alert_failed_reason = None
+    
+    if device2:
+        alert_data = {
+            "uploadId": upload_id,
+            "filename": safe_name,
+            "bytes": file_bytes,
+            "title": "New file activity detected",
+        }
+        alert_delivered = await _send_file_alert_to_device(device2.device_id, alert_data)
+        if not alert_delivered:
+            alert_failed_reason = "WebSocket send failed"
+    else:
+        alert_failed_reason = "Device 2 offline or not paired"
+        log_stage("FILE_ALERT_SKIPPED", reason=alert_failed_reason, device_count=len(await _get_all_paired_devices()))
+    
+    return {
+        "uploadId": upload_id,
+        "filename": safe_name,
+        "bytes": file_bytes,
+        "receivedAt": received_at,
+        "status": "received",
+        "event": event.model_dump(),
+        "device2Alert": {
+            "delivered": alert_delivered,
+            "deviceId": device2.device_id if device2 else None,
+            "reason": alert_failed_reason,
+        },
+    }
+
+
+async def _get_all_paired_devices():
+    async with store.lock:
+        return [d for d in store.list_devices() if d.transport == "paired_web"]
 
 
 # ---------------------------------------------------------------------------

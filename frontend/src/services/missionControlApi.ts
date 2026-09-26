@@ -536,10 +536,23 @@ export async function sendDeviceHeartbeat(deviceId: string, deviceToken: string)
  * ever pushes `incident.alert` (minimal envelope) down it, never a full
  * event/incident payload -- see backend/app/ws.py ConnectionManager.
  */
+interface FileAlertData {
+  uploadId: string;
+  filename: string;
+  bytes: number;
+  title: string;
+}
+
+interface FileAlertEnvelope {
+  type: "file.alert";
+  data: FileAlertData;
+}
+
 export function subscribePairedDevice(
   deviceId: string,
   deviceToken: string,
   onAlert: (alert: AlertEnvelope) => void,
+  onFileAlert: (alert: FileAlertEnvelope) => void,
   onStatusChange: (status: RealtimeStatus | "rejected") => void,
 ): () => void {
   let ws: WebSocket | null = null;
@@ -565,6 +578,8 @@ export function subscribePairedDevice(
         const msg = JSON.parse(evt.data) as { type: string; data: unknown };
         if (msg.type === "incident.alert") {
           onAlert(mapAlertEnvelope(msg.data as WireAlertEnvelope));
+        } else if (msg.type === "file.alert") {
+          onFileAlert(msg as FileAlertEnvelope);
         }
       } catch {
         // ignore malformed frames

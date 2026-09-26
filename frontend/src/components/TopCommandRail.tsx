@@ -4,6 +4,7 @@ import type { MissionControlSnapshot, RealtimeStatus, Source } from "../domain";
 import { sourceHealthColor } from "../theme";
 import { formatClock } from "../format";
 import { StatusDot } from "./atoms";
+import { FileUpload } from "./FileUpload";
 
 interface Props {
   snapshot: MissionControlSnapshot;
@@ -86,6 +87,7 @@ export function TopCommandRail({ snapshot }: Props) {
           </span>
         </div>
         <span className="hidden font-mono text-[11px] text-ink-faint md:inline">{formatClock(now)}</span>
+        <FileUpload onUploadComplete={() => {}} />
         <Link
           to="/"
           className="rounded-sm border border-line px-2.5 py-1.5 font-mono text-[10px] tracking-wide text-ink-faint hover:border-ink-faint hover:text-ink"

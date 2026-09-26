@@ -3,6 +3,18 @@ import { ApiError } from "../api";
 import { sendDeviceHeartbeat, subscribePairedDevice } from "../services/missionControlApi";
 import type { AlertEnvelope } from "../domain";
 
+interface FileAlertData {
+  uploadId: string;
+  filename: string;
+  bytes: number;
+  title: string;
+}
+
+interface FileAlertEnvelope {
+  type: "file.alert";
+  data: FileAlertData;
+}
+
 /**
  * Real, authenticated connection state for a paired phone -- backed by
  * services/missionControlApi.ts `subscribePairedDevice` (the role-gated
@@ -24,9 +36,10 @@ interface UseDeviceConnectionOptions {
   deviceId: string;
   deviceToken: string;
   onAlert?: (alert: AlertEnvelope) => void;
+  onFileAlert?: (alert: FileAlertEnvelope) => void;
 }
 
-export function useDeviceConnection({ deviceId, deviceToken, onAlert }: UseDeviceConnectionOptions) {
+export function useDeviceConnection({ deviceId, deviceToken, onAlert, onFileAlert }: UseDeviceConnectionOptions) {
   const [status, setStatus] = useState<PhoneConnectionStatus>({
     state: "connecting",
     lastConnectedAt: null,
@@ -37,7 +50,9 @@ export function useDeviceConnection({ deviceId, deviceToken, onAlert }: UseDevic
   const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isMountedRef = useRef(true);
   const onAlertRef = useRef(onAlert);
+  const onFileAlertRef = useRef(onFileAlert);
   onAlertRef.current = onAlert;
+  onFileAlertRef.current = onFileAlert;
 
   const patch = useCallback((partial: Partial<PhoneConnectionStatus>) => {
     if (!isMountedRef.current) return;
@@ -78,6 +93,7 @@ export function useDeviceConnection({ deviceId, deviceToken, onAlert }: UseDevic
       deviceId,
       deviceToken,
       (alert) => onAlertRef.current?.(alert),
+      (fileAlert) => onFileAlertRef.current?.(fileAlert),
       (rtStatus) => {
         switch (rtStatus) {
           case "connected":

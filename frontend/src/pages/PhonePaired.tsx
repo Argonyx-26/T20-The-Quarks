@@ -7,6 +7,18 @@ import { StatusDot } from "../components/atoms";
 import { formatClock } from "../format";
 import type { AlertEnvelope } from "../domain";
 
+interface FileAlertData {
+  uploadId: string;
+  filename: string;
+  bytes: number;
+  title: string;
+}
+
+interface FileAlertEnvelope {
+  type: "file.alert";
+  data: FileAlertData;
+}
+
 /**
  * The paired phone's live view -- /phone. Reads a REAL stored credential
  * from a prior /pair/:token confirmation; if there isn't one, this device
@@ -18,6 +30,7 @@ import type { AlertEnvelope } from "../domain";
 export function PhonePaired() {
   const [stored, setStored] = useState<StoredPairedDevice | null>(() => loadPairedDevice());
   const [alert, setAlert] = useState<AlertEnvelope | null>(null);
+  const [fileAlert, setFileAlert] = useState<FileAlertData | null>(null);
   const [acknowledged, setAcknowledged] = useState(false);
 
   const handleAlert = (incoming: AlertEnvelope) => {
@@ -26,8 +39,16 @@ export function PhonePaired() {
     if (isAudioUnlocked()) playSiren(2500);
   };
 
+  const handleFileAlert = (incoming: FileAlertEnvelope) => {
+    setFileAlert(incoming.data);
+    setAcknowledged(false);
+    if (isAudioUnlocked()) playSiren(1500); // shorter siren for file alert
+  };
+
   const connection = useDeviceConnection(
-    stored ? { deviceId: stored.deviceId, deviceToken: stored.deviceToken, onAlert: handleAlert } : { deviceId: "", deviceToken: "" },
+    stored
+      ? { deviceId: stored.deviceId, deviceToken: stored.deviceToken, onAlert: handleAlert, onFileAlert: handleFileAlert }
+      : { deviceId: "", deviceToken: "" },
   );
 
   if (!stored) {
@@ -65,6 +86,11 @@ export function PhonePaired() {
       // Leave the alert visible with its existing MUTE option -- an
       // acknowledge failure shouldn't hide the alert itself.
     }
+  };
+
+  const handleDismissFileAlert = () => {
+    stopSiren();
+    setFileAlert(null);
   };
 
   return (
@@ -153,6 +179,26 @@ export function PhonePaired() {
               className="rounded-[8px] bg-black/30 px-6 py-3 font-mono text-[13px] font-bold tracking-wide disabled:opacity-60"
             >
               {acknowledged ? "ACKNOWLEDGED" : "ACKNOWLEDGE"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {fileAlert && (
+        <div className="fixed inset-0 z-30 flex flex-col items-center justify-center gap-6 bg-amber px-6 text-center text-white">
+          <div className="text-6xl">📁</div>
+          <h1 className="font-mono text-[13px] font-bold uppercase tracking-[0.3em]">FILE ACTIVITY ALERT</h1>
+          <p className="font-mono text-[18px] font-bold">{fileAlert.filename}</p>
+          <p className="max-w-sm text-[16px] font-semibold leading-snug">{fileAlert.title}</p>
+          <p className="font-mono text-[13px]">
+            {fileAlert.bytes} bytes · upload {fileAlert.uploadId.slice(0, 8)}
+          </p>
+          <div className="mt-2">
+            <button
+              onClick={handleDismissFileAlert}
+              className="rounded-[8px] border-2 border-white/60 px-6 py-3 font-mono text-[13px] font-bold tracking-wide"
+            >
+              DISMISS
             </button>
           </div>
         </div>
