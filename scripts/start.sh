@@ -43,7 +43,7 @@ else
   echo "[START] backend on :$BACKEND_PORT"
   (
     cd "$BACKEND_DIR" && \
-    exec .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port "$BACKEND_PORT" \
+    exec .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port "$BACKEND_PORT" \
       > "$ROOT/.sentrix_backend.log" 2>&1
   ) &
   echo $! > "$PIDFILE_DIR/backend.pid"
@@ -93,7 +93,7 @@ if [ -f "$FRONTEND_DIR/package.json" ]; then
     rm -f "$ROOT/.sentrix_frontend.log"
     (
       cd "$FRONTEND_DIR" && \
-      exec npm run dev -- --port "$FRONTEND_PORT_HINT" \
+      exec npm run dev -- --host --port "$FRONTEND_PORT_HINT" \
         > "$ROOT/.sentrix_frontend.log" 2>&1
     ) &
     echo $! > "$PIDFILE_DIR/frontend.pid"
@@ -119,6 +119,20 @@ if [ -f "$FRONTEND_DIR/package.json" ]; then
   fi
 else
   echo "[SKIP] frontend not present yet (frontend/package.json missing)"
+fi
+
+# -- mac endpoint agent ---------------------------------------------------
+if pid_alive "$PIDFILE_DIR/agent.pid"; then
+  echo "[OK] mac endpoint agent already running"
+else
+  echo "[START] mac endpoint agent"
+  (
+    cd "$ROOT" && \
+    exec backend/.venv/bin/python -u sensors/mac_endpoint_agent.py \
+      > "$ROOT/.sentrix_agent.log" 2>&1
+  ) &
+  echo $! > "$PIDFILE_DIR/agent.pid"
+  echo "[OK] mac endpoint agent up (log: .sentrix_agent.log)"
 fi
 
 echo "SENTRIX START COMPLETE"

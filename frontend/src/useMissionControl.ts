@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { api } from "./api";
 import type {
   ConnState,
@@ -6,9 +6,11 @@ import type {
   Incident,
   SentrixEvent,
   WsMessage,
+  Transfer,
 } from "./types";
 
-const WS_URL = import.meta.env.VITE_WS_URL ?? "ws://localhost:8000/ws";
+const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+const WS_URL = import.meta.env.VITE_WS_URL ?? `${protocol}//${window.location.host}/ws`;
 const HEALTH_POLL_MS = 5000;
 const MAX_EVENTS_KEPT = 300;
 const RECONNECT_BASE_MS = 800;
@@ -27,6 +29,7 @@ export interface MissionControlState {
   scenarios: string[];
   setIncidentStatus: (incidentId: string, status: string) => Promise<void>;
   reload: () => Promise<void>;
+  transfers: Transfer[];
 }
 
 function upsertEvent(list: SentrixEvent[], incoming: SentrixEvent): SentrixEvent[] {
@@ -200,6 +203,76 @@ export function useMissionControl(): MissionControlState {
     setIncidents((prev) => upsertIncident(prev, updated));
   }, []);
 
+  const transfers = useMemo(() => {
+    const transferMap = new Map<string, Transfer>();
+    
+    // Sort oldest to newest to replay state
+    const sorted = [...events].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    
+    for (const event of sorted) {
+      if (!event.event_type.startsWith("file_transfer")) continue;
+      
+      const attrs = event.attributes as Record<string, any>;
+      const tId = attrs.transfer_id || attrs.filename || 'unknown';
+      
+      if (!transferMap.has(tId)) {
+        transferMap.set(tId, {
+          transferId: tId,
+          fileName: attrs.filename || 'unknown',
+          fileSize: attrs.file_size || 0,
+          sender: attrs.device || 'UNKNOWN',
+          receiver: event.asset_id,
+          status: 'CONNECTING',
+          bytesTransferred: attrs.file_size || 0,
+          totalBytes: attrs.total_bytes || 1,
+          percentage: 0,
+          transferSpeed: 0,
+          eta: 0,
+          startedAt: event.timestamp,
+          updatedAt: event.timestamp,
+          direction: attrs.transfer_direction || 'INBOUND',
+          history: []
+        });
+      }
+      
+      const t = transferMap.get(tId)!;
+      t.bytesTransferred = attrs.file_size || t.bytesTransferred;
+      t.updatedAt = event.timestamp;
+      
+      const ts = new Date(event.timestamp).getTime();
+      t.history.push({ timestamp: ts, bytes: t.bytesTransferred });
+      if (t.history.length > 10) t.history.shift();
+      
+      if (t.history.length > 1) {
+        const first = t.history[0];
+        const last = t.history[t.history.length - 1];
+        const dt = (last.timestamp - first.timestamp) / 1000;
+        if (dt > 0) {
+          t.transferSpeed = (last.bytes - first.bytes) / dt;
+        }
+      }
+      
+      t.percentage = Math.min(100, Math.max(0, (t.bytesTransferred / t.totalBytes) * 100));
+      
+      if (t.transferSpeed > 0) {
+        t.eta = (t.totalBytes - t.bytesTransferred) / t.transferSpeed;
+      } else {
+        t.eta = 0;
+      }
+      
+      if (event.event_type === "file_transfer_progress") {
+        t.status = 'TRANSFERRING';
+      } else if (attrs.status === "COMPLETED") {
+        t.status = 'COMPLETED';
+        t.completedAt = event.timestamp;
+        t.percentage = 100;
+        t.bytesTransferred = t.totalBytes;
+      }
+    }
+    
+    return Array.from(transferMap.values()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }, [events]);
+
   return {
     events,
     incidents,
@@ -213,5 +286,6 @@ export function useMissionControl(): MissionControlState {
     scenarios,
     setIncidentStatus,
     reload: loadInitialState,
+    transfers,
   };
 }

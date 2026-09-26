@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useMissionControl } from "../useMissionControl";
+import { useMissionControlContext } from "../MissionControlContext";
 import { CommandRail } from "../components/CommandRail";
 import { ConnectionBanner } from "../components/ConnectionBanner";
 import { NetworkField } from "../components/NetworkField";
@@ -11,10 +11,11 @@ import { IncidentTimeline } from "../components/IncidentTimeline";
 import { ReasoningPanel } from "../components/ReasoningPanel";
 import { EvidenceDrawer } from "../components/EvidenceDrawer";
 import { DemoControls } from "../components/DemoControls";
+import { TransferDashboard } from "../components/TransferDashboard";
 import type { IncidentStatus, SentrixEvent } from "../types";
 
 export default function MissionControl() {
-  const mc = useMissionControl();
+  const mc = useMissionControlContext();
   const [selectedEvent, setSelectedEvent] = useState<SentrixEvent | null>(null);
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
@@ -126,8 +127,9 @@ export default function MissionControl() {
           <SensorHealthPanel health={mc.health} />
         </div>
 
-        {/* lower: event stream | timeline + reasoning */}
-        <div className="grid min-h-0 grid-cols-1 gap-2 lg:grid-cols-[1.3fr_1fr]">
+        {/* lower: transfer dashboard | event stream | timeline + reasoning */}
+        <div className="grid min-h-0 grid-cols-1 gap-2 lg:grid-cols-[1fr_1.3fr_1fr]">
+          <TransferDashboard transfers={mc.transfers} online={mc.connState === "live"} />
           <EventStream events={mc.events} onSelect={setSelectedEvent} selectedId={selectedEvent?.event_id ?? null} />
           <div className="grid min-h-0 grid-cols-1 gap-2 sm:grid-cols-2">
             <IncidentTimeline incident={selectedIncident} />

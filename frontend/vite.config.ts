@@ -6,5 +6,16 @@ export default defineConfig({
   server: {
     port: Number(process.env.PORT) || 5173,
     strictPort: true,
+    allowedHosts: true,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true
+      },
+      '/ws': {
+        target: 'ws://127.0.0.1:8000',
+        ws: true
+      }
+    }
   },
 });

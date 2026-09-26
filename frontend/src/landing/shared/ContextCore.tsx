@@ -12,16 +12,15 @@ interface Props {
 }
 
 const PLATE_ANGLES = [
-  { rz: -14, tz: -46, scale: 1.16, opacity: 0.38 },
-  { rz: 9, tz: -14, scale: 1.05, opacity: 0.55 },
-  { rz: -4, tz: 20, scale: 0.94, opacity: 0.78 },
+  { rz: -14, scale: 1.16, opacity: 0.38 },
+  { rz: 9, scale: 1.05, opacity: 0.55 },
+  { rz: -4, scale: 0.94, opacity: 0.78 },
 ];
 
 /**
  * The signature SENTRIX visual: a precision optical instrument (layered glass
- * plates + graphite frame + center lens) rendered with real CSS 3D transforms,
- * not a flat icon. `state` drives the plates from a loose idle pose to a
- * locked, aligned pose — used to echo "context resolved" moments outside the hero.
+ * plates + graphite frame + center lens) rendered flat-on (Z=0). `state` drives 
+ * the plates from a loose idle pose to a locked, aligned pose.
  */
 export function ContextCore({ size = 440, state = "idle", interactive = true, className = "" }: Props) {
   const stageRef = useRef<HTMLDivElement>(null);
@@ -39,7 +38,8 @@ export function ContextCore({ size = 440, state = "idle", interactive = true, cl
     const r = el.getBoundingClientRect();
     const px = (e.clientX - r.left) / r.width - 0.5;
     const py = (e.clientY - r.top) / r.height - 0.5;
-    setTilt({ x: py * -10, y: px * 14 });
+    // Increased multiplier to make the core more movable
+    setTilt({ x: py * 24, y: px * 24 });
   };
 
   const handleMouseLeave = () => setTilt({ x: 0, y: 0 });
@@ -52,37 +52,32 @@ export function ContextCore({ size = 440, state = "idle", interactive = true, cl
       ref={stageRef}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      className={`relative ${className}`}
-      style={{ width: size, height: size, perspective: size * 2.6 }}
+      className={`relative flex items-center justify-center ${className}`}
+      style={{ width: size, height: size }}
       aria-hidden="true"
     >
-      <div
-        className={`absolute inset-0 ${reducedMotion.current ? "" : "animate-core-drift"}`}
-        style={{ transformStyle: "preserve-3d" }}
-      >
+      <div className={`relative flex items-center justify-center w-full h-full ${reducedMotion.current ? "" : "animate-core-drift"}`}>
         <div
-          className="absolute inset-0 transition-transform duration-[900ms] ease-out"
+          className="absolute inset-0 transition-transform duration-[900ms] ease-out flex items-center justify-center"
           style={{
-            transformStyle: "preserve-3d",
-            transform: `rotateX(${-16 + tilt.x}deg) rotateY(${24 + tilt.y}deg)`,
+            transform: `translateX(${tilt.y}px) translateY(${tilt.x}px)`,
           }}
         >
-          {/* depth shadow */}
+          {/* subtle flat contact shadow */}
           <div
             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
             style={{
-              width: size * 0.82,
-              height: size * 0.5,
-              transform: `translateZ(-120px) rotateX(90deg)`,
-              background: "radial-gradient(ellipse at center, rgba(21,26,31,0.22), transparent 70%)",
-              filter: "blur(18px)",
+              width: size * 0.85,
+              height: size * 0.85,
+              background: "radial-gradient(circle at center, rgba(18,55,54,0.08) 0%, transparent 65%)",
+              filter: "blur(14px)",
+              transform: `translateY(${size * 0.05}px)`,
             }}
           />
 
           {/* three interlocking plates */}
           {PLATE_ANGLES.map((p, i) => {
             const lockedRz = locked ? 0 : p.rz;
-            const lockedTz = locked ? -10 + i * 10 : p.tz;
             return (
               <div
                 key={i}
@@ -92,12 +87,12 @@ export function ContextCore({ size = 440, state = "idle", interactive = true, cl
                   height: size * 0.62 * p.scale,
                   marginLeft: -(size * 0.62 * p.scale) / 2,
                   marginTop: -(size * 0.62 * p.scale) / 2,
-                  transform: `translateZ(${lockedTz}px) rotateZ(${lockedRz}deg)`,
+                  transform: `rotate(${lockedRz}deg)`,
                   background:
                     "linear-gradient(135deg, rgba(255,255,255,0.62) 0%, rgba(246,247,246,0.22) 55%, rgba(233,236,238,0.15) 100%)",
-                  border: "1px solid rgba(21,26,31,0.16)",
-                  boxShadow: "0 24px 60px -28px rgba(15,22,28,0.35), inset 0 1px 0 rgba(255,255,255,0.5)",
-                  backdropFilter: "blur(1px)",
+                  border: "1px solid rgba(18,55,54,0.16)",
+                  boxShadow: "0 12px 30px -10px rgba(18,55,54,0.12), inset 0 1px 0 rgba(255,255,255,0.8)",
+                  backdropFilter: "blur(2px)",
                   opacity: aligning || locked ? Math.min(1, p.opacity + 0.2) : p.opacity,
                 }}
               />
@@ -113,7 +108,7 @@ export function ContextCore({ size = 440, state = "idle", interactive = true, cl
             style={{
               marginLeft: -(size * 0.35),
               marginTop: -(size * 0.35),
-              transform: `translateZ(${locked ? 34 : 10}px)`,
+              transform: locked ? "scale(1.02)" : "scale(1)",
               transition: "transform 1000ms ease-out",
             }}
           >
@@ -145,10 +140,10 @@ export function ContextCore({ size = 440, state = "idle", interactive = true, cl
               height: size * 0.22,
               marginLeft: -(size * 0.11),
               marginTop: -(size * 0.11),
-              transform: `translateZ(${locked ? 52 : 30}px)`,
-              background: "radial-gradient(circle at 32% 28%, rgba(255,255,255,0.95), rgba(220,225,228,0.4) 60%, rgba(190,197,202,0.35) 100%)",
-              border: "1px solid rgba(21,26,31,0.28)",
-              boxShadow: "0 12px 30px -12px rgba(15,22,28,0.45)",
+              transform: locked ? "scale(1.08)" : "scale(1)",
+              background: "radial-gradient(circle at 35% 25%, rgba(255,255,255,1), rgba(230,234,236,0.85) 40%, rgba(200,208,212,0.4) 100%)",
+              border: "1px solid rgba(18,55,54,0.22)",
+              boxShadow: "0 8px 24px -6px rgba(18,55,54,0.25), inset 0 2px 4px rgba(255,255,255,0.9)",
             }}
           />
         </div>

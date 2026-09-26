@@ -6,9 +6,9 @@ const CORE = { x: 380, y: 300 };
 const OUTPUT = { x: 610, y: 300 };
 
 const SIGNALS = [
-  { key: "vision", label: "VISION", human: "Restricted-zone presence detected", color: "#4779BD", anchor: { x: 90, y: 150 }, meta: "person_in_restricted_zone" },
-  { key: "endpoint", label: "ENDPOINT", human: "USB device attached", color: "#785EAB", anchor: { x: 70, y: 320 }, meta: "usb_device_attached" },
-  { key: "network", label: "NETWORK", human: "Unusual outbound activity", color: "#138983", anchor: { x: 110, y: 470 }, meta: "outbound_deviation" },
+  { key: "vision", label: "VISION", human: "Restricted-zone presence detected", color: "#4779BD", anchor: { x: 40, y: 140 }, meta: "person_in_restricted_zone" },
+  { key: "endpoint", label: "ENDPOINT", human: "USB device attached", color: "#785EAB", anchor: { x: 40, y: 300 }, meta: "usb_device_attached" },
+  { key: "network", label: "NETWORK", human: "Unusual outbound activity", color: "#138983", anchor: { x: 40, y: 460 }, meta: "outbound_deviation" },
 ];
 
 function pct(v: number, total: number) {
@@ -82,7 +82,7 @@ export function ContextEngineScene({ activeStep, highestStep }: { activeStep: nu
       <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox={`0 0 ${BOX.w} ${BOX.h}`} preserveAspectRatio="xMidYMid meet">
         {SIGNALS.map((s, i) => {
           const active = phase >= 1;
-          const d = bezier(s.anchor.x + 40, s.anchor.y, CORE.x - 70, CORE.y + (i - 1) * 30);
+          const d = bezier(s.anchor.x + 150, s.anchor.y, CORE.x - 120, CORE.y + (i - 1) * 36);
           const id = `engine-path-${s.key}`;
           return (
             <g key={s.key}>
