@@ -44,22 +44,6 @@ class TransferHandler(FileSystemEventHandler):
         self.active_transfers[path] = time.time()
         self.last_sizes[path] = -1
         print(f"[MacEndpointAgent] Transfer started: {path}")
-
-    def on_modified(self, event):
-        if event.is_directory:
-            return
-        path = event.src_path
-        if path in self.active_transfers:
-            try:
-                size = os.path.getsize(path)
-                if size == self.last_sizes.get(path):
-                    # Transfer complete (size hasn't changed since last tick)
-                    self._finalize_transfer(path, size)
-                else:
-                    self.last_sizes[path] = size
-            except FileNotFoundError:
-                pass
-                
     def _send_progress(self, path, current_size):
         start_time = self.active_transfers.get(path, time.time())
         duration = time.time() - start_time

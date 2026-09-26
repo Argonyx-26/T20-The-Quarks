@@ -221,10 +221,11 @@ class FusionEngine:
         incident.confidence = combine_confidence([e.confidence for e in member_events])
         sources = sorted({e.source for e in member_events})
 
-        incident.reasoning.append(
-            f"Additional {event.source} signal ({event.event_type}) at {event.timestamp.isoformat()} "
-            f"correlated into existing incident within the {config.CORRELATION_WINDOW_SECONDS:.0f}s window."
-        )
+        if event.event_type != "file_transfer_progress":
+            incident.reasoning.append(
+                f"Additional {event.source} signal ({event.event_type}) at {event.timestamp.isoformat()} "
+                f"correlated into existing incident within the {config.CORRELATION_WINDOW_SECONDS:.0f}s window."
+            )
         incident.recommended_action = _recommend_action(incident.severity, sources)
         self.store.upsert_incident(incident)
         log_stage(
